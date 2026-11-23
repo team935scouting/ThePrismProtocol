@@ -402,6 +402,9 @@
         this.compositeProgram.bind();
         this.compositeProgram.uniformTexture("Frame", this.screenBuffer);
         this.compositeProgram.uniformF("Exposure", this.width/(Math.max(this.samplesTraced, this.raySize*this.activeBlock)));
+        /* Lets the host page feed extra compositing uniforms (e.g. denoise blur) */
+        if (this.onComposeUniforms)
+            this.onComposeUniforms(this.compositeProgram);
         this.quadVbo.draw(this.compositeProgram, this.gl.TRIANGLE_FAN);
     }
 

@@ -38,10 +38,41 @@ void intersect(Ray ray, inout Intersection isect) {
 vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, inout vec3 throughput) {
     if (isect.mat == 1.0) {
         float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.0596, 17.4688), lambda)/1.8;
-        return sampleRoughDielectric(state, wiLocal, 0.1, ior);
+        // Slightly rough glass; low enough that few rays stray into faint streaks.
+        return sampleRoughDielectric(state, wiLocal, 0.05, ior);
     }
     throughput = vec3(0.0);
     return sampleDiffuse(state, wiLocal);
+}
+`;
+
+/*
+ * Final composite. While only a few thousand light paths have landed, individual rays
+ * show as streaks; a small disc blur (radius from JS, shrinking as samples accumulate)
+ * turns them into a smooth glow that sharpens as the image converges. Then a soft
+ * shoulder tone map so the beam core goes white without a hard clip.
+ */
+const COMPOSE_FRAG = `#include "preamble"
+
+uniform sampler2D Frame;
+uniform float Exposure;
+uniform vec2 Blur;
+
+varying vec2 vTexCoord;
+
+void main() {
+    vec3 sum = texture2D(Frame, vTexCoord).rgb;
+    float wsum = 1.0;
+    for (int i = 0; i < 12; i++) {
+        float fi = float(i);
+        float r = sqrt((fi + 0.5)/12.0);
+        float a = fi*2.39996323;
+        float w = 1.0 - 0.6*r;
+        sum += texture2D(Frame, vTexCoord + vec2(cos(a), sin(a))*r*Blur).rgb*w;
+        wsum += w;
+    }
+    vec3 c = sum/wsum*Exposure;
+    gl_FragColor = vec4(pow(vec3(1.0) - exp(-c), vec3(1.0/2.2)), 1.0);
 }
 `;
 
@@ -103,6 +134,9 @@ type Renderer = {
   setSpreadType: (t: number) => void;
   setEmitterPos: (a: V, b: V) => void;
   setMaxSampleCount: (n: number) => void;
+  setMaxPathLength: (n: number) => void;
+  onComposeUniforms?: (s: Shader) => void;
+  samplesTraced: number;
   changeResolution: (w: number, h: number) => void;
   renderInstant: (t: number) => void;
   finished: () => boolean;
@@ -147,6 +181,13 @@ function loadTantalum() {
 // Light paths per image. The hero is soft light, so a modest count converges cleanly
 // in a few frames, after which the renderer stops and costs nothing.
 const SAMPLES = 400_000;
+/** Ray-texture rows traced per frame (512 rays each), idle vs. while dragging. */
+const ROWS_SETTLING = 48;
+const ROWS_DRAGGING = 24;
+/** A white beam through one prism needs ~4 bounces; 6 leaves room for internal reflections. */
+const BOUNCES = 6;
+/** Denoise blur radius in CSS px after the first frame of rays; shrinks with 1/sqrt(samples). */
+const BLUR_START_PX = 9;
 const BEAM_WIDTH = 0.03; // scene units, full width of the beam's soft profile
 /** Peak brightness of the incoming beam before tone mapping (1 = white). */
 const BEAM_PEAK = 3;
@@ -194,11 +235,7 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
           "(rand(state) - 0.5)*SpatialSpread",
           "(rand(state) + rand(state) - 1.0)*0.5*SpatialSpread",
         );
-        // Soft shoulder tone map so the beam core goes white without a hard clip.
-        g.Shaders["compose-frag"] = g.Shaders["compose-frag"].replace(
-          "pow(texture2D(Frame, vTexCoord).rgb*Exposure, vec3(1.0/2.2))",
-          "pow(vec3(1.0) - exp(-texture2D(Frame, vTexCoord).rgb*Exposure), vec3(1.0/2.2))",
-        );
+        g.Shaders["compose-frag"] = COMPOSE_FRAG;
         g.tgl.init(gl, drawBuffers);
 
         const size = () => {
@@ -215,8 +252,9 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         const renderer = new g.tcore.Renderer(gl, w, h, ["scene-hero"]);
         renderer.setMaxSampleCount(SAMPLES);
         // Small ray batches: each frame stays cheap, the beam still appears at once.
-        renderer.activeBlock = 64;
-        renderer.maxActiveBlock = 64; // at most ~32k light paths per frame
+        renderer.setMaxPathLength(BOUNCES);
+        renderer.activeBlock = ROWS_SETTLING;
+        renderer.maxActiveBlock = ROWS_SETTLING;
         renderer.setSpreadType(g.tcore.Renderer.SPREAD_LASER);
 
         let aspect = w / h;
@@ -278,6 +316,15 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
           // looks the same at every screen size. Peak density of a triangular profile
           // is twice the mean, and BEAM_WIDTH spans h/2 pixels per scene unit.
           renderer.emitterPower = (BEAM_PEAK * 0.5 * BEAM_WIDTH * (h / 2)) / w;
+        };
+
+        // Blur fades from BLUR_START_PX to nothing as samples accumulate.
+        const firstFrameSamples = 512 * ROWS_DRAGGING;
+        renderer.onComposeUniforms = (s) => {
+          const samples = Math.max(renderer.samplesTraced, 1);
+          const cssToPx = w / Math.max(canvas.clientWidth, 1);
+          const px = Math.max(0, BLUR_START_PX * Math.sqrt(firstFrameSamples / samples) - 0.75) * cssToPx;
+          s.uniform2F("Blur", px / w, px / h);
         };
 
         renderer.onTraceUniforms = (s) => {
@@ -346,6 +393,8 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         const down = (e: PointerEvent) => {
           if (e.pointerType === "touch" || e.button !== 0) return;
           dragging = true;
+          renderer.maxActiveBlock = ROWS_DRAGGING;
+          renderer.activeBlock = Math.min(renderer.activeBlock, ROWS_DRAGGING);
           dismissHint();
           try {
             canvas.setPointerCapture(e.pointerId);
@@ -355,7 +404,10 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
           move(e);
         };
         const drag = (e: PointerEvent) => dragging && move(e);
-        const up = () => (dragging = false);
+        const up = () => {
+          dragging = false;
+          renderer.maxActiveBlock = ROWS_SETTLING;
+        };
         const reset = () => {
           custom = false;
           source = defaultSource(layout, aspect);
