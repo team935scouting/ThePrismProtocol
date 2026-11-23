@@ -16,10 +16,10 @@ import {
   updatePassword,
 } from "@/lib/beta";
 import { useReducedMotion } from "@/lib/useMedia";
-import type { PrismControls } from "./PrismScene";
+import type { PrismControls } from "./PrismScene3D";
 import styles from "./Beta.module.css";
 
-const PrismScene = dynamic(() => import("./PrismScene"), { ssr: false });
+const PrismScene = dynamic(() => import("./PrismScene3D"), { ssr: false });
 
 type Mode = "join" | "signin";
 type Status =

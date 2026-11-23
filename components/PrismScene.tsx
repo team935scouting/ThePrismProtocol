@@ -1,537 +1,431 @@
 "use client";
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Lightformer, MeshTransmissionMaterial } from "@react-three/drei";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
-import { useEffect, useMemo, useRef } from "react";
-import * as THREE from "three";
+import { useEffect, useRef } from "react";
+import styles from "./PrismScene.module.css";
 
 /*
- * Six coloured beams — one per scout — converge on a glass prism and leave as one.
+ * A real prism, path traced. White light enters a glass prism and leaves split into
+ * its spectrum: every ray carries a wavelength, refracts by Sellmeier dispersion and
+ * is traced through all of its bounces on the GPU. The renderer is Tantalum by
+ * Benedikt Bitterli (public/tantalum, zlib license), modified to trace complete light
+ * paths each frame so the beam appears at once instead of building up.
  *
- * The light is traced, not drawn: every frame the beams are intersected with the
- * prism's actual faces (at its current rotation) and bent with Snell's law, using a
- * slightly different index of refraction per colour. Turn the prism and:
- *   - the surface reflections sweep across the scene, brighter at grazing angles (Fresnel)
- *   - the internal path moves, and can totally internally reflect off a second face
- *   - the exit beam swings, and its edges split into a spectrum as dispersion grows
+ * Drag across the hero (mouse or pen) to move the light; it stays aimed at the prism.
  */
 
+const BASE = "/tantalum/";
+const HINT_KEY = "prism-drag-hint-dismissed";
+const SCRIPTS = ["spectrum.js", "tantalum-shaders.js", "tantalum-gl.js", "tantalum-core.js"];
+
+/* Scene: absorbing walls at the screen edge and one rotatable glass prism. */
+const HERO_SCENE = `#include "trace-frag"
+
+#include "bsdf"
+#include "intersect"
+
+uniform vec2 Bounds;
+uniform vec2 PrismA;
+uniform vec2 PrismB;
+uniform vec2 PrismC;
+
+void intersect(Ray ray, inout Intersection isect) {
+    bboxIntersect(ray, vec2(0.0), Bounds, 0.0, isect);
+    lineIntersect(ray, PrismA, PrismB, 1.0, isect);
+    lineIntersect(ray, PrismB, PrismC, 1.0, isect);
+    lineIntersect(ray, PrismC, PrismA, 1.0, isect);
+}
+
+vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, inout vec3 throughput) {
+    if (isect.mat == 1.0) {
+        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.0596, 17.4688), lambda)/1.8;
+        return sampleRoughDielectric(state, wiLocal, 0.1, ior);
+    }
+    throughput = vec3(0.0);
+    return sampleDiffuse(state, wiLocal);
+}
+`;
+
+/* ---------- Layout, in Tantalum scene units: x in [-aspect, aspect], y in [-1, 1] ---------- */
+
 type V = [number, number];
-export type PrismControls = { drag: number; scroll: number };
 
-const SCOUTS = [
-  { color: "#ff3b30", ior: 1.505 },
-  { color: "#ff9500", ior: 1.509 },
-  { color: "#ffd60a", ior: 1.513 },
-  { color: "#34c759", ior: 1.518 },
-  { color: "#0a84ff", ior: 1.526 },
-  { color: "#7a5cff", ior: 1.535 },
-];
-const GLASS_IOR = 1.518;
-const BG = "#050507";
-const R = 1.22; // circumradius of the prism's triangular face
-const LONG = 14;
-
-/* ---------- 2D optics ---------- */
-
-const add = (a: V, b: V): V => [a[0] + b[0], a[1] + b[1]];
-const sub = (a: V, b: V): V => [a[0] - b[0], a[1] - b[1]];
-const mul = (a: V, s: number): V => [a[0] * s, a[1] * s];
-const dot = (a: V, b: V) => a[0] * b[0] + a[1] * b[1];
-const cross = (a: V, b: V) => a[0] * b[1] - a[1] * b[0];
-const norm = (a: V): V => {
-  const l = Math.hypot(a[0], a[1]) || 1;
-  return [a[0] / l, a[1] / l];
+type Layout = {
+  center: V;
+  radius: number;
+  /** Rotation of prism and beam together, radians (counter-clockwise). */
+  turn: number;
 };
-const rot = (a: V, t: number): V => [a[0] * Math.cos(t) - a[1] * Math.sin(t), a[0] * Math.sin(t) + a[1] * Math.cos(t)];
 
-// Matches ExtrudeGeometry.center(): the bounding box, not the centroid, sits at the origin.
-const C = R / 4;
-const BASE: V[] = [
-  [0, R - C],
-  [-R * Math.cos(Math.PI / 6), -R / 2 - C],
-  [R * Math.cos(Math.PI / 6), -R / 2 - C],
-];
-const CENTROID: V = [0, -C];
+// Tantalum's own prism scene: apex up, beam rising ~25° into the left face,
+// spectrum leaving down and to the right. We keep that geometry and turn it.
+const BEAM_RISE = (25 * Math.PI) / 180;
+const ENTRY = 0.55; // how far down the left face the beam lands, apex = 0
 
-type Hit = { t: number; p: V; n: V; edge: number };
-
-function intersect(p: V, d: V, verts: V[], centroid: V, skip = -1): Hit | null {
-  let best: Hit | null = null;
-  for (let i = 0; i < 3; i++) {
-    if (i === skip) continue;
-    const a = verts[i];
-    const e = sub(verts[(i + 1) % 3], a);
-    const den = cross(d, e);
-    if (Math.abs(den) < 1e-8) continue;
-    const ap = sub(a, p);
-    const t = cross(ap, e) / den;
-    const u = cross(ap, d) / den;
-    if (t > 1e-4 && u >= 0 && u <= 1 && (!best || t < best.t)) {
-      let n = norm([e[1], -e[0]]);
-      const mid = add(a, mul(e, 0.5));
-      if (dot(n, sub(mid, centroid)) < 0) n = mul(n, -1); // outward
-      best = { t, p: add(p, mul(d, t)), n, edge: i };
-    }
+function layoutFor(aspect: number): Layout {
+  if (aspect >= 1) {
+    // Clear of the headline, which sits bottom-left.
+    return { center: [aspect * 0.3, 0.3], radius: Math.min(0.46, 0.2 + aspect * 0.14), turn: (-30 * Math.PI) / 180 };
   }
-  return best;
+  return { center: [aspect * 0.12, 0.5], radius: Math.min(0.3, aspect * 0.62), turn: (-30 * Math.PI) / 180 };
 }
 
-/** n faces against d. eta = n1 / n2. Returns null on total internal reflection. */
-function refract(d: V, n: V, eta: number): V | null {
-  const cosi = -dot(n, d);
-  const k = 1 - eta * eta * (1 - cosi * cosi);
-  if (k < 0) return null;
-  return norm(add(mul(d, eta), mul(n, eta * cosi - Math.sqrt(k))));
+const rot = ([x, y]: V, a: number): V => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+const add = (a: V, b: V): V => [a[0] + b[0], a[1] + b[1]];
+
+function prismVertices({ center, radius, turn }: Layout): [V, V, V] {
+  // Clockwise, so lineIntersect's normals face outward.
+  const base: V[] = [
+    [0, 1],
+    [0.866, -0.5],
+    [-0.866, -0.5],
+  ];
+  return base.map((p) => add(center, rot([p[0] * radius, p[1] * radius], turn))) as [V, V, V];
 }
-const reflect = (d: V, n: V): V => sub(d, mul(n, 2 * dot(d, n)));
-function fresnel(cosi: number, n1: number, n2: number) {
-  const r0 = ((n1 - n2) / (n1 + n2)) ** 2;
-  return r0 + (1 - r0) * Math.pow(1 - Math.abs(cosi), 5);
+
+/** Point on the prism's left face where the beam lands. */
+function entryPoint(l: Layout): V {
+  const [a, , c] = prismVertices(l);
+  return [a[0] + (c[0] - a[0]) * ENTRY, a[1] + (c[1] - a[1]) * ENTRY];
 }
 
-/* ---------- Beam rendering ---------- */
+/** Default light position: off the left edge, on the beam's line into the prism. */
+function defaultSource(l: Layout, aspect: number): V {
+  const t = entryPoint(l);
+  const dir = rot([Math.cos(BEAM_RISE), Math.sin(BEAM_RISE)], l.turn);
+  const k = (t[0] + aspect * 0.995) / dir[0];
+  return [t[0] - dir[0] * k, t[1] - dir[1] * k];
+}
 
-type BeamState = { from: V; to: V; w0: number; w1: number; intensity: number };
-type Box<T> = { current: T };
-const hidden = (): BeamState => ({ from: [0, 0], to: [0.001, 0], w0: 0, w1: 0, intensity: 0 });
+/* ---------- Tantalum glue ---------- */
 
-const vertex = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
+type Shader = { uniform2F: (n: string, a: number, b: number) => void };
+type Renderer = {
+  setSpreadType: (t: number) => void;
+  setEmitterPos: (a: V, b: V) => void;
+  setMaxSampleCount: (n: number) => void;
+  changeResolution: (w: number, h: number) => void;
+  renderInstant: (t: number) => void;
+  finished: () => boolean;
+  idle: () => void;
+  reset: () => void;
+  onTraceUniforms?: (s: Shader) => void;
+  spatialSpread: number;
+  activeBlock: number;
+  maxActiveBlock: number;
+  emitterPower: number;
+  needsReset: boolean;
+};
 
-// A beam of light in a slightly hazy room: a hot core, a soft scattering halo,
-// drifting dust in the halo, and falloff with distance.
-const beamFragment = /* glsl */ `
-  uniform vec3 uColor;
-  uniform float uTime;
-  uniform float uIntensity;
-  uniform float uLen;
-  uniform float uFadeIn;
-  uniform float uFadeOut;
-  uniform float uPulse;
-  uniform float uSeed;
-  varying vec2 vUv;
+type TantalumGlobals = {
+  Shaders: Record<string, string>;
+  tgl: { init: (gl: WebGLRenderingContext, ext: unknown) => void };
+  tcore: { Renderer: (new (gl: WebGLRenderingContext, w: number, h: number, scenes: string[]) => Renderer) & { SPREAD_LASER: number } };
+};
 
-  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float noise(vec2 p) {
-    vec2 i = floor(p); vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-  }
-
-  void main() {
-    float x = vUv.y * 2.0 - 1.0;
-    float s = vUv.x;
-    float core = exp(-x * x * 70.0);
-    float halo = exp(-x * x * 5.0);
-    float along = smoothstep(0.0, uFadeIn, s) * (1.0 - smoothstep(1.0 - uFadeOut, 1.0, s));
-
-    vec2 q = vec2(s * uLen * 2.2 - uTime * 0.35 + uSeed * 13.0, x * 1.6);
-    float haze = noise(q) * 0.6 + noise(q * 2.7 + uTime * 0.1) * 0.4;
-    float dust = smoothstep(0.82, 1.0, noise(vec2(s * uLen * 9.0 + uSeed * 7.0 - uTime * 0.6, x * 9.0)));
-
-    float p = fract(s * uLen * 0.09 - uTime * 0.22 + uSeed);
-    float pulse = smoothstep(0.0, 0.02, p) * (1.0 - smoothstep(0.02, 0.1, p)) * uPulse;
-
-    vec3 c = uColor * (core * 2.2 + halo * (0.12 + 0.2 * haze) + dust * halo * 0.45)
-           + vec3(core * 0.7)
-           + uColor * pulse * exp(-x * x * 12.0) * 2.0;
-    gl_FragColor = vec4(c * along * uIntensity, 1.0);
-  }
-`;
-
-function Beam({
-  frame,
-  pick,
-  color,
-  seed,
-  fadeIn = 0.25,
-  fadeOut = 0.35,
-  pulse = 0,
-  timeRef,
-}: {
-  frame: Box<Frame>;
-  pick: (f: Frame) => BeamState;
-  color: string;
-  seed: number;
-  fadeIn?: number;
-  fadeOut?: number;
-  pulse?: number;
-  timeRef: Box<number>;
-}) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const geometry = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
-    g.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 0, 1, 1], 2));
-    g.setIndex([0, 2, 1, 1, 2, 3]);
-    return g;
-  }, []);
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        vertexShader: vertex,
-        fragmentShader: beamFragment,
-        transparent: true,
-        depthWrite: false,
-        depthTest: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-        side: THREE.DoubleSide,
-        uniforms: {
-          uColor: { value: new THREE.Color(color) },
-          uTime: { value: 0 },
-          uIntensity: { value: 0 },
-          uLen: { value: 1 },
-          uFadeIn: { value: fadeIn },
-          uFadeOut: { value: fadeOut },
-          uPulse: { value: pulse },
-          uSeed: { value: seed },
-        },
-      }),
-    [color, fadeIn, fadeOut, pulse, seed],
+let loading: Promise<void> | null = null;
+function loadTantalum() {
+  if (loading) return loading;
+  loading = SCRIPTS.reduce<Promise<void>>(
+    (chain, src) =>
+      chain.then(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            const el = document.createElement("script");
+            el.src = BASE + src;
+            el.async = false;
+            el.onload = () => resolve();
+            el.onerror = () => reject(new Error(`Failed to load ${src}`));
+            document.head.appendChild(el);
+          }),
+      ),
+    Promise.resolve(),
   );
-
-  useFrame(() => {
-    const m = mesh.current;
-    if (!m) return;
-    const b = pick(frame.current);
-    const [x0, y0] = b.from;
-    const [x1, y1] = b.to;
-    const len = Math.hypot(x1 - x0, y1 - y0) || 1e-3;
-    const px = -(y1 - y0) / len;
-    const py = (x1 - x0) / len;
-    const pos = m.geometry.getAttribute("position") as THREE.BufferAttribute;
-    pos.setXYZ(0, x0 - (px * b.w0) / 2, y0 - (py * b.w0) / 2, 0);
-    pos.setXYZ(1, x0 + (px * b.w0) / 2, y0 + (py * b.w0) / 2, 0);
-    pos.setXYZ(2, x1 - (px * b.w1) / 2, y1 - (py * b.w1) / 2, 0);
-    pos.setXYZ(3, x1 + (px * b.w1) / 2, y1 + (py * b.w1) / 2, 0);
-    pos.needsUpdate = true;
-    const mat = m.material as THREE.ShaderMaterial;
-    mat.uniforms.uIntensity.value = b.intensity;
-    mat.uniforms.uLen.value = len;
-    mat.uniforms.uTime.value = timeRef.current;
-    m.visible = b.intensity > 0.002;
-  });
-
-  return <mesh ref={mesh} geometry={geometry} material={material} frustumCulled={false} renderOrder={2} />;
+  loading.catch(() => (loading = null));
+  return loading;
 }
 
-/** Where light meets glass, the surface itself glows. */
-const spotFragment = /* glsl */ `
-  uniform float uIntensity;
-  uniform vec3 uColor;
-  varying vec2 vUv;
-  void main() {
-    float d = distance(vUv, vec2(0.5)) * 2.0;
-    float g = exp(-d * d * 9.0) * 1.6 + exp(-d * d * 60.0) * 2.5;
-    gl_FragColor = vec4(uColor * g * uIntensity, 1.0);
-  }
-`;
+// Light paths per image. The hero is soft light, so a modest count converges cleanly
+// in a few frames, after which the renderer stops and costs nothing.
+const SAMPLES = 400_000;
+const BEAM_WIDTH = 0.03; // scene units, full width of the beam's soft profile
+/** Peak brightness of the incoming beam before tone mapping (1 = white). */
+const BEAM_PEAK = 3;
 
-type SpotState = { p: V; intensity: number; size: number };
-
-function Spot({ frame, pick }: { frame: Box<Frame>; pick: (f: Frame) => SpotState }) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        vertexShader: vertex,
-        fragmentShader: spotFragment,
-        transparent: true,
-        depthWrite: false,
-        depthTest: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-        uniforms: { uIntensity: { value: 0 }, uColor: { value: new THREE.Color("#eef3ff") } },
-      }),
-    [],
-  );
-  useFrame(() => {
-    const m = mesh.current;
-    if (!m) return;
-    const s = pick(frame.current);
-    m.position.set(s.p[0], s.p[1], 0.05);
-    m.scale.setScalar(s.size);
-    (m.material as THREE.ShaderMaterial).uniforms.uIntensity.value = s.intensity;
-  });
-  return (
-    <mesh ref={mesh} material={material} renderOrder={3} frustumCulled={false}>
-      <planeGeometry args={[1, 1]} />
-    </mesh>
-  );
-}
-
-/* ---------- Prism ---------- */
-
-function prismGeometry() {
-  const cr = 0.16;
-  const pts = [90, 210, 330].map((deg) => {
-    const a = (deg * Math.PI) / 180;
-    return new THREE.Vector2(Math.cos(a) * R, Math.sin(a) * R);
-  });
-  const shape = new THREE.Shape();
-  pts.forEach((p, i) => {
-    const prev = pts[(i + 2) % 3];
-    const next = pts[(i + 1) % 3];
-    const a = p.clone().add(prev.clone().sub(p).setLength(cr * 2.2));
-    const b = p.clone().add(next.clone().sub(p).setLength(cr * 2.2));
-    if (i === 0) shape.moveTo(a.x, a.y);
-    else shape.lineTo(a.x, a.y);
-    shape.quadraticCurveTo(p.x, p.y, b.x, b.y);
-  });
-  shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: 1.5,
-    bevelEnabled: true,
-    bevelThickness: 0.07,
-    bevelSize: 0.05,
-    bevelSegments: 8,
-    curveSegments: 24,
-  });
-  g.center();
-  return g;
-}
-
-const glowFragment = /* glsl */ `
-  uniform float uIntensity;
-  varying vec2 vUv;
-  void main() {
-    float d = distance(vUv, vec2(0.5));
-    float g = pow(max(0.0, 1.0 - d * 2.0), 3.0) * 0.3 * uIntensity;
-    gl_FragColor = vec4(vec3(0.82, 0.88, 1.0) * g, 1.0);
-  }
-`;
-
-/** All light paths for one frame, traced from the prism's current in-plane rotation. */
-function trace(theta: number) {
-  const incoming = SCOUTS.map(hidden);
-  const reflected = SCOUTS.map(hidden);
-  const fringes = SCOUTS.map(hidden);
-  let inner = hidden();
-  let bounce = hidden();
-  let exit = hidden();
-  const entry: SpotState = { p: [0, 0], intensity: 0, size: 1.1 };
-  const exitSpot: SpotState = { p: [0, 0], intensity: 0, size: 1.3 };
-  let energy = 0;
-  const result = () => ({ incoming, reflected, fringes, inner, bounce, exit, entry, exitSpot, energy });
-
-  const verts = BASE.map((v) => rot(v, theta));
-  const centroid = rot(CENTROID, theta);
-  const d0 = norm([1, -0.1]);
-  const hit = intersect(sub([-0.45, 0.12], mul(d0, 10)), d0, verts, centroid);
-  if (!hit) return result();
-  const E = hit.p;
-  const nIn = hit.n;
-  entry.p = E;
-  entry.intensity = 0.22;
-
-  let flux = 0;
-  SCOUTS.forEach((s, i) => {
-    const ang = Math.atan2(d0[1], d0[0]) + (i - 2.5) * 0.06;
-    const d: V = [Math.cos(ang), Math.sin(ang)];
-    const cosi = -dot(nIn, d);
-    incoming[i] = { from: sub(E, mul(d, LONG)), to: E, w0: 0.55, w1: 0.22, intensity: 0.5 };
-    const Rf = cosi > 0 ? fresnel(cosi, 1, s.ior) : 1;
-    flux += 1 - Rf;
-    reflected[i] = {
-      from: E,
-      to: add(E, mul(reflect(d, nIn), LONG * 0.6)),
-      w0: 0.2,
-      w1: 1.0,
-      intensity: cosi > 0 ? Math.min(0.75, 0.02 + Rf * 3) : 0,
-    };
-  });
-  energy = flux / SCOUTS.length;
-
-  const t = refract(d0, nIn, 1 / GLASS_IOR);
-  if (!t) return result();
-
-  // Inside the glass: follow the ray, allowing one total internal reflection.
-  let p = E;
-  let dir = t;
-  let edge = hit.edge;
-  let out: { X: V; n: V; dir: V; internal: V } | null = null;
-  for (let n = 0; n < 2 && !out; n++) {
-    const h = intersect(p, dir, verts, centroid, edge);
-    if (!h) break;
-    const inside = mul(h.n, -1);
-    const cosi = -dot(inside, dir);
-    const beam = { from: p, to: h.p, w0: 0.3, w1: 0.3, intensity: energy * 0.7 };
-    if (n === 0) inner = beam;
-    else bounce = beam;
-    const refracted = refract(dir, inside, GLASS_IOR);
-    if (refracted) {
-      out = { X: h.p, n: h.n, dir: refracted, internal: dir };
-      energy *= 1 - fresnel(cosi, GLASS_IOR, 1);
-    } else {
-      dir = reflect(dir, inside);
-      p = h.p;
-      edge = h.edge;
-    }
-  }
-  if (!out) return result();
-
-  const { X } = out;
-  exit = { from: X, to: add(X, mul(out.dir, LONG)), w0: 0.28, w1: 1.3, intensity: energy * 0.95 };
-  exitSpot.p = X;
-  exitSpot.intensity = energy * 0.3;
-  SCOUTS.forEach((s, i) => {
-    const f = refract(out.internal, mul(out.n, -1), s.ior);
-    if (f) fringes[i] = { from: X, to: add(X, mul(f, LONG)), w0: 0.1, w1: 0.9, intensity: energy * 0.3 };
-  });
-  return result();
-}
-
-type Frame = ReturnType<typeof trace>;
-
-function Rig({ reduced, controls }: { reduced: boolean; controls: Box<PrismControls> }) {
-  const prism = useRef<THREE.Mesh>(null);
-  const glow = useRef<THREE.ShaderMaterial>(null);
-  const time = useRef(0);
-  const pointer = useRef({ x: 0, y: 0 });
-  const angle = useRef({ z: 0, x: 0.1, y: -0.32 });
-  const frame = useRef<Frame>(trace(0));
-  const { viewport, size } = useThree();
-  const geometry = useMemo(() => prismGeometry(), []);
-  const bg = useMemo(() => new THREE.Color(BG), []);
+export default function PrismScene({ active, onReady }: { active: boolean; reduced: boolean; onReady?: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const outlineRef = useRef<SVGPolygonElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const hintRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(active);
+  const wake = useRef<() => void>(() => {});
+  const readyRef = useRef(onReady);
 
   useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      pointer.current.x = (e.clientX / window.innerWidth) * 2 - 1;
-      pointer.current.y = (e.clientY / window.innerHeight) * 2 - 1;
+    readyRef.current = onReady;
+  }, [onReady]);
+
+  useEffect(() => {
+    activeRef.current = active;
+    if (active) wake.current();
+  }, [active]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let cancelled = false;
+    let frame = 0;
+    let cleanupInput = () => {};
+
+    loadTantalum()
+      .then(() => {
+        if (cancelled) return;
+        const g = window as unknown as TantalumGlobals;
+        const gl = canvas.getContext("webgl", { alpha: false, antialias: false });
+        if (!gl) throw new Error("WebGL unavailable");
+        const floatExt = gl.getExtension("OES_texture_float");
+        const floatLin = gl.getExtension("OES_texture_float_linear");
+        const drawBuffers = gl.getExtension("WEBGL_draw_buffers");
+        gl.getExtension("WEBGL_color_buffer_float");
+        if (!floatExt || !floatLin || !drawBuffers) throw new Error("Float render targets unavailable");
+
+        g.Shaders["scene-hero"] = HERO_SCENE;
+        // Soft-edged beam: triangular spatial profile instead of a flat bar.
+        g.Shaders["init-frag"] = g.Shaders["init-frag"].replace(
+          "(rand(state) - 0.5)*SpatialSpread",
+          "(rand(state) + rand(state) - 1.0)*0.5*SpatialSpread",
+        );
+        // Soft shoulder tone map so the beam core goes white without a hard clip.
+        g.Shaders["compose-frag"] = g.Shaders["compose-frag"].replace(
+          "pow(texture2D(Frame, vTexCoord).rgb*Exposure, vec3(1.0/2.2))",
+          "pow(vec3(1.0) - exp(-texture2D(Frame, vTexCoord).rgb*Exposure), vec3(1.0/2.2))",
+        );
+        g.tgl.init(gl, drawBuffers);
+
+        const size = () => {
+          const r = canvas.getBoundingClientRect();
+          // Render at CSS-pixel size (no devicePixelRatio) and at most 1280 wide:
+          // diffuse light upsamples invisibly and fill cost drops 2-4x.
+          const scale = Math.min(1, 1280 / Math.max(r.width, 1));
+          return [Math.max(2, Math.round(r.width * scale)), Math.max(2, Math.round(r.height * scale))] as const;
+        };
+
+        let [w, h] = size();
+        canvas.width = w;
+        canvas.height = h;
+        const renderer = new g.tcore.Renderer(gl, w, h, ["scene-hero"]);
+        renderer.setMaxSampleCount(SAMPLES);
+        // Small ray batches: each frame stays cheap, the beam still appears at once.
+        renderer.activeBlock = 64;
+        renderer.maxActiveBlock = 64; // at most ~32k light paths per frame
+        renderer.setSpreadType(g.tcore.Renderer.SPREAD_LASER);
+
+        let aspect = w / h;
+        let layout = layoutFor(aspect);
+        let source: V = defaultSource(layout, aspect);
+        let custom = false;
+
+        const toPixels = ([x, y]: V): V => [((x / aspect + 1) / 2) * w, ((1 - y) / 2) * h];
+        const toScene = (px: number, py: number): V => [((px / w) * 2 - 1) * aspect, 1 - (py / h) * 2];
+
+        const drawOutline = () => {
+          const svg = svgRef.current;
+          const poly = outlineRef.current;
+          if (!svg || !poly) return;
+          svg.setAttribute("viewBox", `${-aspect} -1 ${aspect * 2} 2`);
+          poly.setAttribute("points", prismVertices(layout).map(([x, y]) => `${x},${-y}`).join(" "));
+          placeHint();
+        };
+
+        // Hint sits just under the beam, partway between the light and the prism.
+        const placeHint = () => {
+          const hint = hintRef.current;
+          if (!hint) return;
+          const t = entryPoint(layout);
+          const k = aspect >= 1 ? 0.62 : 0.5;
+          const x = source[0] + (t[0] - source[0]) * k;
+          const y = source[1] + (t[1] - source[1]) * k;
+          hint.style.left = `${((x / aspect + 1) / 2) * 100}%`;
+          hint.style.top = `calc(${((1 - y) / 2) * 100}% + 22px)`;
+        };
+
+        let hintDismissed = false;
+        try {
+          hintDismissed = localStorage.getItem(HINT_KEY) === "1";
+        } catch {
+          /* storage blocked: show the hint for this visit */
+        }
+        const canDrag = window.matchMedia("(any-pointer: fine)").matches;
+        const showHint = () => {
+          if (!hintDismissed && canDrag) hintRef.current?.setAttribute("data-show", "");
+        };
+        const dismissHint = () => {
+          if (hintDismissed) return;
+          hintDismissed = true;
+          hintRef.current?.setAttribute("data-gone", "");
+          try {
+            localStorage.setItem(HINT_KEY, "1");
+          } catch {
+            /* fine: it just reappears next visit */
+          }
+        };
+
+        const aim = () => {
+          renderer.needsReset = true;
+          renderer.setEmitterPos(toPixels(source), toPixels(entryPoint(layout)));
+          // A narrow beam rather than a 1px laser line, so the spectrum reads as a band.
+          renderer.spatialSpread = BEAM_WIDTH;
+          // Tantalum's exposure scales with canvas width; divide that out so the beam
+          // looks the same at every screen size. Peak density of a triangular profile
+          // is twice the mean, and BEAM_WIDTH spans h/2 pixels per scene unit.
+          renderer.emitterPower = (BEAM_PEAK * 0.5 * BEAM_WIDTH * (h / 2)) / w;
+        };
+
+        renderer.onTraceUniforms = (s) => {
+          const [a, b, c] = prismVertices(layout);
+          s.uniform2F("Bounds", aspect + 0.02, 1.02);
+          s.uniform2F("PrismA", a[0], a[1]);
+          s.uniform2F("PrismB", b[0], b[1]);
+          s.uniform2F("PrismC", c[0], c[1]);
+        };
+
+        aim();
+        drawOutline();
+
+        let announced = false;
+        const loop = (t: number) => {
+          frame = 0;
+          if (cancelled || !activeRef.current) return;
+          if (!renderer.finished()) {
+            renderer.renderInstant(t);
+            if (!announced) {
+              announced = true;
+              readyRef.current?.();
+              showHint();
+            }
+            frame = requestAnimationFrame(loop);
+          } else {
+            renderer.idle();
+          }
+        };
+        wake.current = () => {
+          if (!frame && !cancelled && activeRef.current) frame = requestAnimationFrame(loop);
+        };
+        wake.current();
+
+        // Resize: new pixel grid, same scene.
+        let resizeTimer = 0;
+        const ro = new ResizeObserver(() => {
+          window.clearTimeout(resizeTimer);
+          resizeTimer = window.setTimeout(() => {
+            const [nw, nh] = size();
+            if (nw === w && nh === h) return;
+            w = nw;
+            h = nh;
+            canvas.width = w;
+            canvas.height = h;
+            aspect = w / h;
+            layout = layoutFor(aspect);
+            if (!custom) source = defaultSource(layout, aspect);
+            renderer.changeResolution(w, h);
+            aim();
+            drawOutline();
+            wake.current();
+          }, 120);
+        });
+        ro.observe(canvas);
+
+        // Drag to move the light. Touch is left alone so the page still scrolls.
+        let dragging = false;
+        const move = (e: PointerEvent) => {
+          const r = canvas.getBoundingClientRect();
+          source = toScene(((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h);
+          custom = true;
+          aim();
+          wake.current();
+        };
+        const down = (e: PointerEvent) => {
+          if (e.pointerType === "touch" || e.button !== 0) return;
+          dragging = true;
+          dismissHint();
+          try {
+            canvas.setPointerCapture(e.pointerId);
+          } catch {
+            /* synthetic or already-released pointer */
+          }
+          move(e);
+        };
+        const drag = (e: PointerEvent) => dragging && move(e);
+        const up = () => (dragging = false);
+        const reset = () => {
+          custom = false;
+          source = defaultSource(layout, aspect);
+          aim();
+          wake.current();
+        };
+        canvas.addEventListener("pointerdown", down);
+        canvas.addEventListener("pointermove", drag);
+        canvas.addEventListener("pointerup", up);
+        canvas.addEventListener("pointercancel", up);
+        canvas.addEventListener("dblclick", reset);
+        cleanupInput = () => {
+          ro.disconnect();
+          window.clearTimeout(resizeTimer);
+          canvas.removeEventListener("pointerdown", down);
+          canvas.removeEventListener("pointermove", drag);
+          canvas.removeEventListener("pointerup", up);
+          canvas.removeEventListener("pointercancel", up);
+          canvas.removeEventListener("dblclick", reset);
+        };
+      })
+      .catch((err) => {
+        // No float WebGL: the outline alone still shows a prism, and the copy carries the page.
+        console.warn("Prism hero renderer unavailable:", err);
+        readyRef.current?.();
+      });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      cleanupInput();
+      wake.current = () => {};
     };
-    window.addEventListener("pointermove", onMove, { passive: true });
-    return () => window.removeEventListener("pointermove", onMove);
   }, []);
 
-  const narrow = size.width / size.height < 0.95;
-  const layout = narrow
-    ? { pos: [0, viewport.height * 0.17, 0] as const, scale: Math.min(0.72, viewport.width / 5.2) }
-    : { pos: [viewport.width * 0.2, viewport.height * 0.1, 0] as const, scale: Math.min(1, viewport.width / 8.5) };
-
-  // Runs before the beams read the trace.
-  useFrame((_, dt) => {
-    const step = Math.min(dt, 0.05);
-    if (!reduced) time.current += step;
-    const c = controls.current;
-
-    // Pointer gives a generous lean, scrolling turns it, dragging spins it.
-    const target = {
-      z: -pointer.current.x * 0.42 + c.scroll * 0.55 + c.drag,
-      x: 0.1 + pointer.current.y * 0.28,
-      y: -0.32 + pointer.current.x * 0.38,
-    };
-    const k = 1 - Math.pow(0.0015, step);
-    const a = angle.current;
-    a.z += (target.z - a.z) * k;
-    a.x += (target.x - a.x) * k;
-    a.y += (target.y - a.y) * k;
-    prism.current?.rotation.set(a.x, a.y, a.z);
-
-    frame.current = trace(a.z);
-    if (glow.current) glow.current.uniforms.uIntensity.value = 0.6 + frame.current.energy * 0.8;
-  }, -1);
-
   return (
-    <group position={layout.pos} scale={layout.scale}>
-      <mesh position={[0.1, 0, -1.6]} renderOrder={-2}>
-        <planeGeometry args={[5, 5]} />
-        <shaderMaterial
-          ref={glow}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-          vertexShader={vertex}
-          fragmentShader={glowFragment}
-          uniforms={{ uIntensity: { value: 1 } }}
+    <>
+      <div ref={hintRef} className={styles.hint} aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <path
+            d="M8 1.8v12.4M1.8 8h12.4M8 1.8 6.2 3.6M8 1.8l1.8 1.8M8 14.2l-1.8-1.8M8 14.2l1.8-1.8M1.8 8l1.8-1.8M1.8 8l1.8 1.8M14.2 8l-1.8-1.8M14.2 8l-1.8 1.8"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        Drag to move the light
+      </div>
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", cursor: "crosshair", touchAction: "pan-y" }}
+      />
+      <svg
+        ref={svgRef}
+        aria-hidden="true"
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+      >
+        <polygon
+          ref={outlineRef}
+          fill="none"
+          stroke="rgba(245,245,247,0.22)"
+          strokeWidth={1}
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
         />
-      </mesh>
-
-      {SCOUTS.map((s, i) => (
-        <Beam key={`in-${i}`} frame={frame} pick={(f) => f.incoming[i]} color={s.color} seed={i * 0.17} fadeIn={0.55} fadeOut={0.01} pulse={1} timeRef={time} />
-      ))}
-      {SCOUTS.map((s, i) => (
-        <Beam key={`rf-${i}`} frame={frame} pick={(f) => f.reflected[i]} color={s.color} seed={i * 0.31 + 3} fadeIn={0.02} fadeOut={0.75} timeRef={time} />
-      ))}
-      <Beam frame={frame} pick={(f) => f.inner} color="#f4f7ff" seed={5.1} fadeIn={0.05} fadeOut={0.05} timeRef={time} />
-      <Beam frame={frame} pick={(f) => f.bounce} color="#f4f7ff" seed={6.3} fadeIn={0.05} fadeOut={0.05} timeRef={time} />
-      {SCOUTS.map((s, i) => (
-        <Beam key={`fr-${i}`} frame={frame} pick={(f) => f.fringes[i]} color={s.color} seed={i * 0.23 + 9} fadeIn={0.02} fadeOut={0.6} timeRef={time} />
-      ))}
-      <Beam frame={frame} pick={(f) => f.exit} color="#ffffff" seed={2.7} fadeIn={0.01} fadeOut={0.55} pulse={1} timeRef={time} />
-      <Spot frame={frame} pick={(f) => f.entry} />
-      <Spot frame={frame} pick={(f) => f.exitSpot} />
-
-      <mesh ref={prism} geometry={geometry} rotation={[0.1, -0.32, 0]} renderOrder={1}>
-        <MeshTransmissionMaterial
-          background={bg}
-          transmission={1}
-          thickness={1.5}
-          roughness={0.035}
-          ior={1.52}
-          chromaticAberration={0.5}
-          anisotropicBlur={0.12}
-          distortion={0.06}
-          distortionScale={0.25}
-          temporalDistortion={0}
-          samples={6}
-          resolution={768}
-          backside
-          backsideThickness={0.5}
-          clearcoat={1}
-          clearcoatRoughness={0.08}
-          attenuationDistance={4}
-          attenuationColor="#f2f6ff"
-          color="#ffffff"
-        />
-      </mesh>
-    </group>
-  );
-}
-
-export default function PrismScene({
-  active,
-  reduced,
-  controls,
-  onReady,
-}: {
-  active: boolean;
-  reduced: boolean;
-  controls: Box<PrismControls>;
-  onReady?: () => void;
-}) {
-  return (
-    <Canvas
-      frameloop={active ? "always" : "never"}
-      dpr={[1, 1.75]}
-      camera={{ position: [0, 0, 10], fov: 30 }}
-      gl={{ antialias: false, powerPreference: "high-performance" }}
-      onCreated={({ gl }) => {
-        gl.setClearColor(BG);
-        requestAnimationFrame(() => onReady?.());
-      }}
-      aria-hidden="true"
-    >
-      <Environment resolution={256} frames={1}>
-        <Lightformer form="rect" intensity={5} position={[0, 5, -4]} rotation-x={Math.PI / 2} scale={[14, 3, 1]} />
-        <Lightformer form="rect" intensity={3} position={[-7, 0.5, 1]} rotation-y={Math.PI / 2} scale={[12, 1.2, 1]} />
-        <Lightformer form="rect" intensity={2.4} position={[7, -0.5, 1]} rotation-y={-Math.PI / 2} scale={[12, 1.2, 1]} />
-        <Lightformer form="rect" intensity={1.5} position={[0, -5, 2]} rotation-x={-Math.PI / 2} scale={[10, 2, 1]} />
-        <Lightformer form="ring" intensity={6} position={[3, 3, 6]} scale={2.2} />
-      </Environment>
-      <Rig reduced={reduced} controls={controls} />
-      <EffectComposer multisampling={4}>
-        <Bloom mipmapBlur luminanceThreshold={0.7} luminanceSmoothing={0.25} intensity={0.75} radius={0.65} />
-      </EffectComposer>
-    </Canvas>
+      </svg>
+    </>
   );
 }
