@@ -10,9 +10,9 @@ const BOARDS = [
 ];
 
 const SETUP = [
-  "Download the Prism OS image.",
-  "Flash it to a microSD card with Raspberry Pi Imager.",
-  "Power on the Pi and open prism.local from any device on the same network.",
+  { lead: "Download.", rest: "Get the Prism OS image for your board." },
+  { lead: "Flash.", rest: "Write it to a microSD card with Raspberry Pi Imager." },
+  { lead: "Power on.", rest: "Open prism.local from any device on the same network." },
 ];
 
 export default function Download() {
@@ -21,7 +21,7 @@ export default function Download() {
       <div className="wrap">
         <div className={styles.top}>
           <div>
-            <p className="eyebrow" style={{ color: "var(--muted-on-light)" }}>
+            <p className="eyebrow">
               Prism OS
             </p>
             <h2 className={styles.title}>From a microSD card to match one.</h2>
@@ -43,10 +43,9 @@ export default function Download() {
           <div>
             <h3 className={styles.h3}>Set up</h3>
             <ol className={styles.setup}>
-              {SETUP.map((s, i) => (
-                <li key={s}>
-                  <span className={styles.n}>{i + 1}</span>
-                  {s}
+              {SETUP.map((s) => (
+                <li key={s.lead} className="lead">
+                  <strong>{s.lead}</strong> {s.rest}
                 </li>
               ))}
             </ol>

@@ -1,6 +1,9 @@
 .hero {
   position: relative;
   min-height: 100svh;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
   display: flex;
   align-items: flex-end;
   background: var(--ink);
@@ -37,9 +40,29 @@
   pointer-events: auto;
 }
 
+.hero[data-dragging] {
+  cursor: grabbing;
+}
+
+/* Apple-style eyebrow: a short bold line in the headline's own voice, not tiny caps. */
 .eyebrow {
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.7vw, 24px);
+  font-weight: 600;
+  letter-spacing: 0.009em;
+  color: var(--text-on-dark);
+  margin-bottom: 14px;
+}
+
+.hint {
+  position: absolute;
+  right: var(--gutter);
+  bottom: clamp(56px, 10vh, 112px);
+  z-index: 2;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--muted-on-dark);
-  margin-bottom: 20px;
+  pointer-events: none;
 }
 
 .title {
@@ -107,5 +130,8 @@
   }
   .copy {
     padding-bottom: 40px;
+  }
+  .hint {
+    display: none;
   }
 }

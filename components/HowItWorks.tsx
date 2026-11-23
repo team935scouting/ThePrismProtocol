@@ -198,18 +198,16 @@ export default function HowItWorks() {
       <div className={styles.sticky}>
         <div className={`wrap ${styles.grid}`}>
           <div className={styles.text}>
-            <p className="eyebrow" style={{ color: "var(--muted-on-light)" }}>
+            <p className="eyebrow">
               How it works
             </p>
             <h2 className={styles.title}>From the stands to your database in four steps.</h2>
             <ol className={styles.steps}>
               {STEPS.map((s, i) => (
-                <li key={s.title} data-active={i === step ? "" : undefined} data-done={i < step ? "" : undefined}>
+                <li key={s.title} data-active={i === step ? "" : undefined}>
                   <button type="button" onClick={() => goTo(i)} aria-current={i === step ? "step" : undefined}>
-                    <span className={styles.num}>{String(i + 1).padStart(2, "0")}</span>
-                    {s.title}
+                    <strong>{s.title}.</strong> <span className={styles.rest}>{s.body}</span>
                   </button>
-                  <p>{s.body}</p>
                 </li>
               ))}
             </ol>

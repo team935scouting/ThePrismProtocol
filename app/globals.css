@@ -80,11 +80,33 @@ button {
   padding: 0 var(--gutter);
 }
 
+/* Section eyebrow, Apple style: a short bold line in the headline's own voice. */
 .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.7vw, 24px);
+  font-weight: 600;
+  line-height: 1.16;
+  letter-spacing: 0.009em;
+  color: inherit;
+}
+
+/* Copy with a highlighted lead sentence: the lead carries the point, the rest
+   is supporting detail in grey. */
+.lead {
+  font-family: var(--font-display);
+  font-size: clamp(17px, 1.5vw, 21px);
+  font-weight: 600;
+  line-height: 1.38;
+  letter-spacing: 0.011em;
+  color: var(--lead-rest, var(--muted-on-light));
+}
+.lead strong {
+  font-weight: 600;
+  color: var(--lead-strong, var(--text-on-light));
+}
+[data-nav="dark"] .lead {
+  --lead-rest: var(--muted-on-dark);
+  --lead-strong: var(--text-on-dark);
 }
 
 @media (prefers-reduced-motion: reduce) {
