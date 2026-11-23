@@ -1,0 +1,152 @@
+.glass {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  /* Fallback material for engines without url() in backdrop-filter. */
+  -webkit-backdrop-filter: blur(18px) saturate(175%);
+  backdrop-filter: blur(18px) saturate(175%);
+  transition:
+    transform 180ms var(--ease-press),
+    background-color 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out);
+}
+
+.defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  gap: inherit;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Specular rim: a 1px gradient stroke, bright where light would hit (top-left), with a
+   softer catch on the opposite corner. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+/* Light that follows the pointer: the "energize with light" response. */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 220ms var(--ease-out);
+  background: radial-gradient(
+    120px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.22),
+    transparent 70%
+  );
+}
+
+.dark {
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.04),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--text-on-dark);
+}
+
+.dark::before {
+  background: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.08) 32%,
+    rgba(255, 255, 255, 0.02) 60%,
+    rgba(255, 255, 255, 0.28)
+  );
+}
+
+.light {
+  background-color: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04),
+    0 8px 28px rgba(0, 0, 0, 0.1);
+  color: var(--text-on-light);
+}
+
+.light::before {
+  background: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 1),
+    rgba(255, 255, 255, 0.2) 35%,
+    rgba(0, 0, 0, 0.06) 65%,
+    rgba(255, 255, 255, 0.8)
+  );
+}
+
+.light::after {
+  background: radial-gradient(
+    120px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.7),
+    transparent 70%
+  );
+}
+
+/* With true lensing the tint can drop: the refraction carries the material. */
+.dark[data-lensing] {
+  background-color: rgba(255, 255, 255, 0.035);
+}
+.light[data-lensing] {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.interactive {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .interactive:hover::after {
+    opacity: 1;
+  }
+  .dark.interactive:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.interactive:active {
+  transform: scale(0.965);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .dark {
+    background-color: #1c1c22;
+  }
+  .light {
+    background-color: #ffffff;
+  }
+}
