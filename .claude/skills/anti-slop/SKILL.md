@@ -30,6 +30,18 @@ defaults, not physics: break one only with a stated reason.
 - No letter-spacing on body text. Body text left-aligned; don't center everything.
 - Hero headline under 4 lines. No one-word italic/serif/gradient "highlight" in headlines.
 
+### What Apple actually does (measured on apple.com, Nov 2026)
+- **Eyebrows** are a short sentence-case phrase in bold display type (~24px, weight
+  600–700) in the headline's own color, e.g. "Entertainment" over an 80px headline.
+  Never tiny monospace caps with wide tracking; that is the single loudest AI tell.
+- **No numbered labels** ("01 / 02") on steps or features. Sequence comes from order.
+- **Lead-sentence copy**: body paragraphs at ~21px semibold where the first sentence is
+  full-color and the rest is grey: "**Pushing boundaries from the inside out.** Spatial
+  experiences on…". Use this instead of label + heading + paragraph stacks.
+- Headlines are short declaratives ending in a period. Body grey is ~#86868b (use
+  #6e6e73 on white for AA).
+- Monospace only for things that are literally code: paths, hostnames, commands.
+
 ## Color
 - No default indigo/violet (#6366f1, #8b5cf6, #7c3aed) and no purple-to-blue gradients.
 - One dominant neutral, one sharp accent, each with a fixed role. Don't let the CTA color

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import Announcement from "./Announcement";
 import LiquidGlass from "./LiquidGlass";
 import styles from "./Hero.module.css";
 import { useReducedMotion } from "@/lib/useMedia";
@@ -30,7 +31,8 @@ export default function Hero() {
       <div className={styles.scrim} aria-hidden="true" />
 
       <div className={`wrap ${styles.copy}`}>
-        <p className={`eyebrow ${styles.eyebrow}`}>The Prism Protocol</p>
+        <Announcement />
+        <p className={styles.eyebrow}>The Prism Protocol</p>
         <h1 className={styles.title}>
           Six scouts in.
           <br />

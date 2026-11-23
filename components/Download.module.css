@@ -92,19 +92,7 @@
 }
 
 .setup li {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  align-items: baseline;
-  font-size: 19px;
-  line-height: 1.4;
-  letter-spacing: -0.015em;
-  max-width: 32rem;
-}
-
-.n {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--muted-on-light);
+  max-width: 30rem;
 }
 
 .boards {
@@ -123,8 +111,7 @@
 
 .boards td {
   text-align: right;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--muted-on-light);
   font-weight: 400;
 }
@@ -168,8 +155,5 @@
 @media (max-width: 760px) {
   .cols {
     grid-template-columns: 1fr;
-  }
-  .setup li {
-    font-size: 17px;
   }
 }

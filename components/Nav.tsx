@@ -1,13 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import LiquidGlass from "./LiquidGlass";
 import styles from "./Nav.module.css";
 
 const LINKS = [
-  { href: "#how", label: "How it works" },
-  { href: "#protocol", label: "Protocol" },
-  { href: "#developers", label: "Developers" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#developers", label: "Developers" },
+  { href: "/beta", label: "Beta" },
 ];
 
 export function PrismMark({ size = 18 }: { size?: number }) {
@@ -51,20 +52,20 @@ export default function Nav() {
   return (
     <header className={styles.bar} data-tone={tone}>
       <LiquidGlass as="nav" tone={tone} className={styles.pill} aria-label="Primary" bezel={12} strength={30}>
-        <a href="#top" className={styles.brand}>
+        <Link href="/" className={styles.brand}>
           <PrismMark />
           Prism
-        </a>
+        </Link>
         <ul className={styles.links}>
           {LINKS.map((l) => (
             <li key={l.href}>
-              <a href={l.href}>{l.label}</a>
+              <Link href={l.href}>{l.label}</Link>
             </li>
           ))}
         </ul>
-        <a href="#download" className={styles.cta}>
+        <Link href="/#download" className={styles.cta}>
           Download
-        </a>
+        </Link>
       </LiquidGlass>
     </header>
   );

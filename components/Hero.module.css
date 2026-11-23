@@ -37,9 +37,24 @@
   pointer-events: auto;
 }
 
+/* Apple-style eyebrow: a short bold line in the headline's own voice, not tiny caps. */
 .eyebrow {
-  color: var(--muted-on-dark);
-  margin-bottom: 20px;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.7vw, 24px);
+  font-weight: 600;
+  letter-spacing: 0.009em;
+  color: var(--text-on-dark);
+  margin-bottom: 14px;
+}
+
+.announcement {
+  pointer-events: auto;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  margin-bottom: 22px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .title {

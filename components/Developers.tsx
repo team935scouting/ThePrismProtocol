@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import LiquidGlass from "./LiquidGlass";
+import Link from "next/link";
+import { Fragment, useState, type ReactNode } from "react";
+import Segmented from "./Segmented";
 import styles from "./Developers.module.css";
 
 const SAMPLES = {
@@ -83,23 +84,13 @@ function highlight(code: string, lang: string): ReactNode[] {
 
 export default function Developers() {
   const [active, setActive] = useState<Key>("curl");
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const index = KEYS.indexOf(active);
   const sample = SAMPLES[active];
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    e.preventDefault();
-    const next = (index + (e.key === "ArrowRight" ? 1 : KEYS.length - 1)) % KEYS.length;
-    setActive(KEYS[next]);
-    tabs.current[next]?.focus();
-  };
 
   return (
     <section className={styles.section} id="developers" data-nav="dark">
       <div className={`wrap ${styles.grid}`}>
         <div className={styles.copy}>
-          <p className="eyebrow" style={{ color: "var(--muted-on-dark)" }}>
+          <p className="eyebrow">
             Developers
           </p>
           <h2 className={styles.title}>Your app speaks HTTP. Prism handles the radio.</h2>
@@ -117,48 +108,22 @@ export default function Developers() {
               </li>
             ))}
           </ul>
-          <p className={styles.note}>Developer preview. Endpoints may change before 1.0.</p>
+          <p className={styles.note}>
+            Developer preview. Endpoints may change before 1.0.{" "}
+            <Link href="/beta">Join the developer beta</Link>
+          </p>
         </div>
 
         <div className={styles.window}>
           <div className={styles.chrome}>
-            <div className={styles.segmented} role="tablist" aria-label="Code sample language" onKeyDown={onKeyDown}>
-              {KEYS.map((key, i) => (
-                <button
-                  key={key}
-                  ref={(el) => {
-                    tabs.current[i] = el;
-                  }}
-                  role="tab"
-                  type="button"
-                  id={`tab-${key}`}
-                  aria-selected={active === key}
-                  aria-controls="code-panel"
-                  tabIndex={active === key ? 0 : -1}
-                  className={styles.segment}
-                  onClick={() => setActive(key)}
-                >
-                  {SAMPLES[key].label}
-                </button>
-              ))}
-              {/* The selection is a lens sliding over the labels. */}
-              <LiquidGlass
-                tone="dark"
-                bezel={9}
-                strength={18}
-                blur={0}
-                aria-hidden="true"
-                className={styles.thumb}
-                style={{
-                  position: "absolute",
-                  top: 4,
-                  left: 4,
-                  width: `calc((100% - 8px) / ${KEYS.length})`,
-                  height: "calc(100% - 8px)",
-                  transform: `translateX(${index * 100}%)`,
-                }}
-              />
-            </div>
+            <Segmented
+              options={KEYS.map((k) => ({ key: k, label: SAMPLES[k].label }))}
+              value={active}
+              onChange={setActive}
+              label="Code sample language"
+              idPrefix="tab"
+              panelId="code-panel"
+            />
           </div>
           <pre id="code-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className={styles.code} tabIndex={0}>
             <code>

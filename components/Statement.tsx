@@ -59,29 +59,20 @@ export default function Statement() {
         </p>
 
         <div className={styles.layers}>
-          <div>
-            <h3>The protocol</h3>
-            <p>
-              A small, documented contract for moving records between devices and a hub: how a
-              device introduces itself, how a record is framed, and when it counts as delivered.
-              Open, so any app can speak it.
-            </p>
-          </div>
-          <div>
-            <h3>Prism OS</h3>
-            <p>
-              A Raspberry Pi image that implements the protocol. It owns the Bluetooth radio,
-              keeps every record on disk, and serves them on your local network. Flash it,
-              power it, forget it.
-            </p>
-          </div>
-          <div>
-            <h3>Your app</h3>
-            <p>
-              Stays exactly what it is. It reads and writes JSON over HTTP or a WebSocket. Prism
-              never looks inside your data, so your schema is yours.
-            </p>
-          </div>
+          <p className="lead">
+            <strong>The protocol.</strong> A small, documented contract for moving records
+            between devices and a hub: how a device introduces itself, how a record is framed,
+            and when it counts as delivered. Open, so any app can speak it.
+          </p>
+          <p className="lead">
+            <strong>Prism OS.</strong> A Raspberry Pi image that implements the protocol. It owns
+            the Bluetooth radio, keeps every record on disk, and serves them on your local
+            network.
+          </p>
+          <p className="lead">
+            <strong>Your app.</strong> Stays exactly what it is. It reads and writes JSON over
+            HTTP or a WebSocket, and Prism never looks inside it.
+          </p>
         </div>
       </div>
     </section>

@@ -40,17 +40,13 @@ export default function Details() {
             each one.
           </p>
         </header>
-        <dl className={styles.rows}>
+        <div className={styles.grid}>
           {ROWS.map((r) => (
-            <div key={r.label} className={styles.row}>
-              <dt className="eyebrow">{r.label}</dt>
-              <dd>
-                <h3>{r.title}</h3>
-                <p>{r.body}</p>
-              </dd>
-            </div>
+            <p key={r.label} className="lead">
+              <strong>{r.title}</strong> {r.body}
+            </p>
           ))}
-        </dl>
+        </div>
       </div>
     </section>
   );
