@@ -54,6 +54,16 @@
   margin-bottom: 14px;
 }
 
+.announcement {
+  pointer-events: auto;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  margin-bottom: 22px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .hint {
   position: absolute;
   right: var(--gutter);

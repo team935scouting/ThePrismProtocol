@@ -34,8 +34,14 @@ type Status =
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Where to go after signing in: a same-site path from ?next=, or the dashboard. */
+function nextPath() {
+  const next = new URLSearchParams(window.location.search).get("next") ?? "";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+}
+
 /** Apple-style field: the label sits inside the box and floats up once there's a value. */
-function Field({
+export function Field({
   label,
   hint,
   error,
@@ -93,7 +99,7 @@ export default function Beta() {
     if (mode === "join" && password.length < 8) next.password = "Use at least 8 characters.";
     if (mode === "signin" && !password) next.password = "Enter your password.";
     const team = String(data.get("team") ?? "").trim();
-    if (mode === "join" && team && !/^\d{1,5}$/.test(team)) next.team = "Team numbers are digits only.";
+    if (mode === "join" && (!/^\d{1,5}$/.test(team) || Number(team) < 1)) next.team = "Enter your team number.";
     return next;
   };
 
@@ -116,13 +122,13 @@ export default function Beta() {
           name: String(data.get("name")).trim(),
           email,
           password,
-          team: String(data.get("team") ?? "").trim() || undefined,
+          team: Number(String(data.get("team")).trim()),
           updates: data.get("updates") === "on",
         });
         setStatus(needsConfirmation ? { kind: "confirm", email } : { kind: "done", email });
       } else {
         await signIn({ email, password });
-        setStatus({ kind: "done", email });
+        window.location.assign(nextPath());
       }
     } catch (err) {
       fail(err);
@@ -199,8 +205,8 @@ export default function Beta() {
                   <strong>Signed in{status.email ? ` as ${status.email}` : ""}.</strong> New Prism OS
                   builds go to beta accounts first.
                 </p>
-                <Link href="/" className={styles.submit}>
-                  Back to Prism
+                <Link href="/dashboard" className={styles.submit}>
+                  Open your dashboard
                 </Link>
                 <button type="button" className={styles.textButton} onClick={onSignOut}>
                   Sign out
@@ -291,7 +297,15 @@ export default function Beta() {
                   />
                   {mode === "join" && (
                     <>
-                      <Field label="Team number (optional)" name="team" inputMode="numeric" autoComplete="off" error={errors.team} />
+                      <Field
+                        label="Team number"
+                        name="team"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={5}
+                        hint="The first account for a team becomes its owner. Everyone after joins once accepted."
+                        error={errors.team}
+                      />
                       <label className={styles.check}>
                         <input type="checkbox" name="updates" />
                         <span>Email me when a new beta build is ready.</span>

@@ -34,9 +34,29 @@ npm run build   # static export to out/ (includes CNAME for GitHub Pages)
 3. Leave **Confirm email** on. New accounts get a confirmation link that lands back on
    `/beta`. Password resets work the same way.
 
-Name, team number and the "email me about builds" choice are stored on each user as
-metadata (`raw_user_meta_data`), visible under **Authentication → Users**. No tables or
-row-level-security policies are needed for the beta as it stands.
+4. Open **SQL Editor**, paste all of
+   `supabase/migrations/20261123000000_prism_platform.sql` and run it once.
+5. Make yourself the owner of team 935 (which is what unlocks `/admin`):
+   `select public.prism_bootstrap_owner(935, 'the-email-you-signed-up-with');`
+
+## Teams, roles and the consoles
+
+- **Sign-up** asks for a team number. After the email is confirmed and the person signs
+  in, the first account for a number founds that team as its **owner**. Later accounts
+  for the same number wait as **pending** until an owner or admin accepts them; they
+  join as **developers** and can be promoted to **admin**.
+- **`/dashboard`** (every team): members and join requests, devices, test programs,
+  community posts and account settings.
+- **`/pair`**: a phone or tablet scans the QR code from *Dashboard → Devices → Add
+  device* (or types the 8-character code). Its secret token stays on that device; only a
+  hash is stored. Admins then choose which software each device may run, and on which
+  channel.
+- **`/admin`** (active members of team 935 only): every team, account and device,
+  software and releases, test programs, community moderation, and the homepage
+  announcement and sign-up switch.
+
+All of this is enforced in Postgres (row-level security, column grants and
+`SECURITY DEFINER` functions in the migration). The browser code only shapes requests.
 
 Because the site is a static export, the two `NEXT_PUBLIC_` values are baked in at build
 time: a deploy pipeline needs them set as build environment variables.
