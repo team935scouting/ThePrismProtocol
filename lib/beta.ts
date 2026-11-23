@@ -15,7 +15,23 @@ export type SignUp = {
 
 export type SignIn = { email: string; password: string };
 
-const redirect = () => `${window.location.origin}/beta`;
+/**
+ * Where confirmation and password-reset emails send people. Always the live site, even
+ * when someone signs up from a local dev server or a preview deployment:
+ *   1. NEXT_PUBLIC_SITE_URL, if set (e.g. https://theprisimprotocol.dev)
+ *   2. Vercel's production domain, which Vercel provides to every build
+ *   3. whatever site this page is on
+ * The address must also be allowed in Supabase → Authentication → URL Configuration.
+ */
+export function siteUrl() {
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL;
+  if (explicit) return explicit.replace(/\/$/, "");
+  const vercel = process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercel) return `https://${vercel}`;
+  return window.location.origin;
+}
+
+const redirect = () => `${siteUrl()}/beta`;
 
 /** Returns whether the new account still has to confirm its email address. */
 export async function signUp({ name, email, password, team, updates }: SignUp) {

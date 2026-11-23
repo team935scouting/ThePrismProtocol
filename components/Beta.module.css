@@ -8,8 +8,9 @@
   padding: 104px 0 56px;
 }
 
+/* The light stays put behind the form while it scrolls, sized to the screen. */
 .stage {
-  position: absolute;
+  position: fixed;
   inset: 0;
   opacity: 0;
   transition: opacity 1200ms var(--ease-out);
@@ -21,7 +22,7 @@
 
 /* Keep the light, but quiet it behind the form side. */
 .scrim {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(90deg, rgba(5, 5, 7, 0.88) 0%, rgba(5, 5, 7, 0.55) 45%, rgba(5, 5, 7, 0) 75%);

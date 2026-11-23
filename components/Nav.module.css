@@ -90,8 +90,16 @@
 }
 
 @media (max-width: 640px) {
+  /* Phones keep the one link people need there: Beta (sign in / sign up). */
   .links {
+    margin-left: auto;
+  }
+  .links li:not(:last-child) {
     display: none;
+  }
+  .links a {
+    height: 44px;
+    padding: 0 12px;
   }
   .pill {
     padding-left: 16px;

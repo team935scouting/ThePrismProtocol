@@ -16,10 +16,9 @@ import {
   updatePassword,
 } from "@/lib/beta";
 import { useReducedMotion } from "@/lib/useMedia";
-import type { PrismControls } from "./PrismScene3D";
 import styles from "./Beta.module.css";
 
-const PrismScene = dynamic(() => import("./PrismScene3D"), { ssr: false });
+const PrismScene = dynamic(() => import("./PrismScene"), { ssr: false });
 
 type Mode = "join" | "signin";
 type Status =
@@ -67,7 +66,6 @@ export function Field({
 }
 
 export default function Beta() {
-  const controls = useRef<PrismControls>({ drag: 0, scroll: 0 });
   const reduced = useReducedMotion();
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<Mode>("join");
@@ -190,7 +188,7 @@ export default function Beta() {
   return (
     <section className={styles.page} data-nav="dark">
       <div className={styles.stage} data-ready={ready ? "" : undefined} aria-hidden="true">
-        <PrismScene active reduced={reduced} controls={controls} onReady={() => setReady(true)} />
+        <PrismScene active reduced={reduced} onReady={() => setReady(true)} />
       </div>
       <div className={styles.scrim} aria-hidden="true" />
 

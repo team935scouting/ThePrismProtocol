@@ -1,4 +1,20 @@
-/* "Drag to move the light" — shown once the beam has rendered, gone after the first drag. */
+/* Invisible grab area over the prism. touch-action: none lets a finger drag the prism
+   instead of scrolling; the rest of the hero still scrolls. */
+.handle {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.handle[data-dragging] {
+  cursor: grabbing;
+}
+
+/* "Drag the prism or the light" — shown once the beam has rendered, gone after the first drag. */
 .hint {
   position: absolute;
   z-index: 1;

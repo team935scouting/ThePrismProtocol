@@ -14,6 +14,7 @@ import {
   updateProfile,
   type Role,
 } from "@/lib/api";
+import { siteUrl } from "@/lib/beta";
 import { useQuery } from "@/lib/useQuery";
 import { useSession, type Session } from "@/lib/useSession";
 import { CommunityPanel } from "../console/Community";
@@ -109,7 +110,7 @@ function Overview({ r, go }: { r: Ready; go: (id: Id) => void }) {
           <Row
             lead={<Icon name="members" />}
             title="Invite your developers"
-            sub={`They sign up at ${typeof window === "undefined" ? "" : window.location.host}/beta with team number ${r.team.number}.`}
+            sub={`They sign up at ${siteUrl().replace(/^https?:\/\//, "")}/beta with team number ${r.team.number}.`}
           />
           <Row
             lead={<Icon name="devices" />}

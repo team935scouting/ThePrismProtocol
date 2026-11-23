@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { PrismMark } from "../Nav";
 import { requestTeam, signOut, type Membership } from "@/lib/api";
 import { Icon, type IconName } from "./Icon";
@@ -27,6 +27,58 @@ export function useHashSection<T extends string>(ids: readonly T[], fallback: T)
   return [current, set];
 }
 
+function SidebarContent<T extends string>({
+  identity,
+  sections,
+  active,
+  onSelect,
+  extraLinks,
+}: {
+  identity: { big: string; sub: string };
+  sections: NavSection<T>[];
+  active: T;
+  onSelect: (id: T) => void;
+  extraLinks?: ReactNode;
+}) {
+  return (
+    <>
+      <Link href="/" className={s.brand}>
+        <PrismMark />
+        Prism
+      </Link>
+      <div className={s.identity}>
+        <div className={s.big}>{identity.big}</div>
+        <div className={s.sub}>{identity.sub}</div>
+      </div>
+      <nav aria-label="Sections">
+        <ul className={s.nav}>
+          {sections.map((sec) => (
+            <li key={sec.id}>
+              <button
+                type="button"
+                className={s.navItem}
+                aria-current={sec.id === active ? "page" : undefined}
+                onClick={() => onSelect(sec.id)}
+              >
+                <Icon name={sec.icon} size={18} />
+                {sec.label}
+                {sec.count ? <span className={s.count}>{sec.count}</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className={s.sidebarFoot}>
+        {extraLinks}
+        <button type="button" className={s.navItem} onClick={() => signOut()}>
+          <Icon name="signout" size={18} />
+          Sign out
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function Shell<T extends string>({
   identity,
   sections,
@@ -42,44 +94,63 @@ export function Shell<T extends string>({
   extraLinks?: ReactNode;
   children: ReactNode;
 }) {
+  // On phones the sidebar lives in a drawer. A <dialog> gives it focus trapping,
+  // Escape to close and a backdrop for free.
+  const drawer = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  const show = () => {
+    drawer.current?.showModal();
+    setOpen(true);
+  };
+  const hide = () => drawer.current?.close();
+  const pick = (id: T) => {
+    onSelect(id);
+    hide();
+  };
+  const current = sections.find((sec) => sec.id === active);
+  const waiting = sections.reduce((n, sec) => n + (sec.count ?? 0), 0);
+  const content = { identity, sections, active, extraLinks };
+
   return (
     <ToastProvider>
       <div className={s.root}>
+        <header className={s.topbar}>
+          <button
+            type="button"
+            className={s.menuButton}
+            onClick={show}
+            aria-label={waiting ? `Open menu, ${waiting} waiting` : "Open menu"}
+            aria-expanded={open}
+          >
+            <Icon name="menu" size={22} />
+            {waiting ? <span className={s.dot} /> : null}
+          </button>
+          <span className={s.topTitle}>{current?.label}</span>
+          <Link href="/" className={s.topBrand} aria-label="Prism home">
+            <PrismMark />
+          </Link>
+        </header>
+
+        <dialog
+          ref={drawer}
+          className={s.drawer}
+          aria-label="Menu"
+          onClose={() => setOpen(false)}
+          onClick={(e) => {
+            if (e.target === drawer.current) hide();
+          }}
+        >
+          <div className={s.drawerInner}>
+            <button type="button" className={s.drawerClose} onClick={hide} aria-label="Close menu">
+              <Icon name="close" size={16} />
+            </button>
+            <SidebarContent {...content} onSelect={pick} />
+          </div>
+        </dialog>
+
         <div className={s.shell}>
           <aside className={s.sidebar}>
-            <Link href="/" className={s.brand}>
-              <PrismMark />
-              Prism
-            </Link>
-            <div className={s.identity}>
-              <div className={s.big}>{identity.big}</div>
-              <div className={s.sub}>{identity.sub}</div>
-            </div>
-            <nav aria-label="Sections">
-              <ul className={s.nav}>
-                {sections.map((sec) => (
-                  <li key={sec.id}>
-                    <button
-                      type="button"
-                      className={s.navItem}
-                      aria-current={sec.id === active ? "page" : undefined}
-                      onClick={() => onSelect(sec.id)}
-                    >
-                      <Icon name={sec.icon} size={18} />
-                      {sec.label}
-                      {sec.count ? <span className={s.count}>{sec.count}</span> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            <div className={s.sidebarFoot}>
-              {extraLinks}
-              <button type="button" className={s.navItem} onClick={() => signOut()}>
-                <Icon name="signout" size={18} />
-                Sign out
-              </button>
-            </div>
+            <SidebarContent {...content} onSelect={onSelect} />
           </aside>
           <main className={s.main}>
             <div className={s.page}>{children}</div>

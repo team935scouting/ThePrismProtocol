@@ -15,6 +15,7 @@ import {
   type Device,
   type DeviceKind,
 } from "@/lib/api";
+import { siteUrl } from "@/lib/beta";
 import { useQuery } from "@/lib/useQuery";
 import { DeviceGlyph, Icon } from "./Icon";
 import {
@@ -57,7 +58,7 @@ function AddDeviceSheet({ open, onClose, onAdded }: { open: boolean; onClose: ()
     let live = true;
     createPairing()
       .then(async (p) => {
-        const url = `${window.location.origin}/pair?code=${p.code}`;
+        const url = `${siteUrl()}/pair?code=${p.code}`;
         const qr = await QRCode.toDataURL(url, { margin: 1, width: 440, errorCorrectionLevel: "M" });
         if (live) {
           setPairing({ ...p, qr, url });
@@ -117,7 +118,7 @@ function AddDeviceSheet({ open, onClose, onAdded }: { open: boolean; onClose: ()
         <div className={s.pairing}>
           <p className={s.lead} style={{ marginTop: 0 }}>
             <strong>Scan this with the phone or tablet you want to add.</strong> Or open{" "}
-            <span style={{ whiteSpace: "nowrap" }}>{window.location.host}/pair</span> on it and type the code.
+            <span style={{ whiteSpace: "nowrap" }}>{siteUrl().replace(/^https?:\/\//, "")}/pair</span> on it and type the code.
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className={s.qr} src={pairing.qr} alt={`QR code for pairing code ${pairing.code}`} />

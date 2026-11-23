@@ -10,7 +10,9 @@ import styles from "./PrismScene.module.css";
  * Benedikt Bitterli (public/tantalum, zlib license), modified to trace complete light
  * paths each frame so the beam appears at once instead of building up.
  *
- * Drag across the hero (mouse or pen) to move the light; it stays aimed at the prism.
+ * Drag the prism to move it (any pointer, touch included). Drag anywhere else with a
+ * mouse or pen, or swipe sideways on a touch screen, to move the light; it stays aimed
+ * at the prism. Vertical swipes still scroll the page. Double-click resets both.
  */
 
 const BASE = "/tantalum/";
@@ -197,6 +199,7 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
   const outlineRef = useRef<SVGPolygonElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(active);
   const wake = useRef<() => void>(() => {});
   const readyRef = useRef(onReady);
@@ -258,7 +261,16 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         renderer.setSpreadType(g.tcore.Renderer.SPREAD_LASER);
 
         let aspect = w / h;
-        let layout = layoutFor(aspect);
+        let prismAt: V | null = null; // where the visitor dragged the prism, if anywhere
+        const clampCenter = ([x, y]: V, radius: number): V => [
+          Math.min(aspect - radius, Math.max(-aspect + radius, x)),
+          Math.min(1 - radius, Math.max(-1 + radius, y)),
+        ];
+        const layoutNow = (): Layout => {
+          const base = layoutFor(aspect);
+          return prismAt ? { ...base, center: clampCenter(prismAt, base.radius) } : base;
+        };
+        let layout = layoutNow();
         let source: V = defaultSource(layout, aspect);
         let custom = false;
 
@@ -271,7 +283,20 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
           if (!svg || !poly) return;
           svg.setAttribute("viewBox", `${-aspect} -1 ${aspect * 2} 2`);
           poly.setAttribute("points", prismVertices(layout).map(([x, y]) => `${x},${-y}`).join(" "));
+          placeHandle();
           placeHint();
+        };
+
+        // A touch target over the prism. It opts out of browser panning so a finger on the
+        // prism drags it, while the rest of the hero keeps scrolling normally.
+        const placeHandle = () => {
+          const handle = handleRef.current;
+          if (!handle) return;
+          const [cx, cy] = layout.center;
+          const sizePx = layout.radius * 1.6 * (canvas.clientHeight / 2);
+          handle.style.left = `${((cx / aspect + 1) / 2) * 100}%`;
+          handle.style.top = `${((1 - cy) / 2) * 100}%`;
+          handle.style.width = handle.style.height = `${Math.max(56, sizePx)}px`;
         };
 
         // Hint sits just under the beam, partway between the light and the prism.
@@ -292,9 +317,8 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         } catch {
           /* storage blocked: show the hint for this visit */
         }
-        const canDrag = window.matchMedia("(any-pointer: fine)").matches;
         const showHint = () => {
-          if (!hintDismissed && canDrag) hintRef.current?.setAttribute("data-show", "");
+          if (!hintDismissed) hintRef.current?.setAttribute("data-show", "");
         };
         const dismissHint = () => {
           if (hintDismissed) return;
@@ -371,7 +395,7 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
             canvas.width = w;
             canvas.height = h;
             aspect = w / h;
-            layout = layoutFor(aspect);
+            layout = layoutNow();
             if (!custom) source = defaultSource(layout, aspect);
             renderer.changeResolution(w, h);
             aim();
@@ -381,52 +405,114 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         });
         ro.observe(canvas);
 
-        // Drag to move the light. Touch is left alone so the page still scrolls.
-        let dragging = false;
-        const move = (e: PointerEvent) => {
+        // Input. One gesture at a time: "prism" moves the prism, "light" moves the light,
+        // "pending" is a touch on the open hero that becomes a light drag only if it heads
+        // sideways (vertical swipes belong to the browser and end in pointercancel).
+        type Gesture = { id: number; mode: "prism" | "light" | "pending"; x: number; y: number; offset: V };
+        let gesture: Gesture | null = null;
+        const handle = handleRef.current;
+
+        const scenePoint = (e: PointerEvent): V => {
           const r = canvas.getBoundingClientRect();
-          source = toScene(((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h);
-          custom = true;
-          aim();
-          wake.current();
+          return toScene(((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h);
         };
-        const down = (e: PointerEvent) => {
-          if (e.pointerType === "touch" || e.button !== 0) return;
-          dragging = true;
+        const startDragging = () => {
           renderer.maxActiveBlock = ROWS_DRAGGING;
           renderer.activeBlock = Math.min(renderer.activeBlock, ROWS_DRAGGING);
           dismissHint();
-          try {
-            canvas.setPointerCapture(e.pointerId);
-          } catch {
-            /* synthetic or already-released pointer */
+        };
+        const apply = (e: PointerEvent) => {
+          if (!gesture) return;
+          const p = scenePoint(e);
+          if (gesture.mode === "prism") {
+            prismAt = [p[0] + gesture.offset[0], p[1] + gesture.offset[1]];
+            layout = layoutNow();
+            if (!custom) source = defaultSource(layout, aspect);
+            drawOutline();
+          } else {
+            source = p;
+            custom = true;
           }
-          move(e);
-        };
-        const drag = (e: PointerEvent) => dragging && move(e);
-        const up = () => {
-          dragging = false;
-          renderer.maxActiveBlock = ROWS_SETTLING;
-        };
-        const reset = () => {
-          custom = false;
-          source = defaultSource(layout, aspect);
           aim();
           wake.current();
         };
-        canvas.addEventListener("pointerdown", down);
-        canvas.addEventListener("pointermove", drag);
-        canvas.addEventListener("pointerup", up);
-        canvas.addEventListener("pointercancel", up);
-        canvas.addEventListener("dblclick", reset);
+        const begin = (e: PointerEvent, onPrism: boolean) => {
+          if (e.pointerType !== "touch" && e.button !== 0) return;
+          if (gesture) return;
+          const p = scenePoint(e);
+          const touchOpen = e.pointerType === "touch" && !onPrism;
+          gesture = {
+            id: e.pointerId,
+            mode: onPrism ? "prism" : touchOpen ? "pending" : "light",
+            x: e.clientX,
+            y: e.clientY,
+            offset: [layout.center[0] - p[0], layout.center[1] - p[1]],
+          };
+          if (gesture.mode === "pending") return;
+          if (onPrism) e.preventDefault();
+          startDragging();
+          try {
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+          } catch {
+            /* synthetic or already-released pointer */
+          }
+          if (gesture.mode === "light") apply(e);
+          handle?.setAttribute("data-dragging", "");
+        };
+        const onMove = (e: PointerEvent) => {
+          if (!gesture || e.pointerId !== gesture.id) return;
+          if (gesture.mode === "pending") {
+            const dx = Math.abs(e.clientX - gesture.x);
+            const dy = Math.abs(e.clientY - gesture.y);
+            if (dx < 10 || dx < dy * 1.2) return;
+            gesture.mode = "light";
+            startDragging();
+          }
+          apply(e);
+        };
+        const end = (e: PointerEvent) => {
+          if (!gesture || e.pointerId !== gesture.id) return;
+          gesture = null;
+          renderer.maxActiveBlock = ROWS_SETTLING;
+          handle?.removeAttribute("data-dragging");
+        };
+        const reset = () => {
+          custom = false;
+          prismAt = null;
+          layout = layoutNow();
+          source = defaultSource(layout, aspect);
+          drawOutline();
+          aim();
+          wake.current();
+        };
+        const downCanvas = (e: PointerEvent) => {
+          // A mouse on the prism moves the prism too, not only a finger on the handle.
+          const p = scenePoint(e);
+          const [cx, cy] = layout.center;
+          begin(e, Math.hypot(p[0] - cx, p[1] - cy) < layout.radius * 0.8);
+        };
+        const downHandle = (e: PointerEvent) => begin(e, true);
+
+        const targets: HTMLElement[] = handle ? [canvas, handle] : [canvas];
+        canvas.addEventListener("pointerdown", downCanvas);
+        handle?.addEventListener("pointerdown", downHandle);
+        for (const t of targets) {
+          t.addEventListener("pointermove", onMove);
+          t.addEventListener("pointerup", end);
+          t.addEventListener("pointercancel", end);
+          t.addEventListener("dblclick", reset);
+        }
         cleanupInput = () => {
           ro.disconnect();
           window.clearTimeout(resizeTimer);
-          canvas.removeEventListener("pointerdown", down);
-          canvas.removeEventListener("pointermove", drag);
-          canvas.removeEventListener("pointerup", up);
-          canvas.removeEventListener("pointercancel", up);
-          canvas.removeEventListener("dblclick", reset);
+          canvas.removeEventListener("pointerdown", downCanvas);
+          handle?.removeEventListener("pointerdown", downHandle);
+          for (const t of targets) {
+            t.removeEventListener("pointermove", onMove);
+            t.removeEventListener("pointerup", end);
+            t.removeEventListener("pointercancel", end);
+            t.removeEventListener("dblclick", reset);
+          }
         };
       })
       .catch((err) => {
@@ -456,8 +542,9 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
             strokeLinejoin="round"
           />
         </svg>
-        Drag to move the light
+        Drag the prism or the light
       </div>
+      <div ref={handleRef} className={styles.handle} aria-hidden="true" />
       <canvas
         ref={canvasRef}
         aria-hidden="true"

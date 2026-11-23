@@ -23,6 +23,7 @@ const PATHS = {
   vote: "M12 19V6 M6.5 11.5 12 6l5.5 5.5",
   external: "M14 4h6v6 M20 4l-9 9 M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4",
   pin: "M9 4h6l-1 6 3 3H7l3-3z M12 16v5",
+  menu: "M4 7h16 M4 12h16 M4 17h16",
 } as const;
 
 export type IconName = keyof typeof PATHS;
