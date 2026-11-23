@@ -1,0 +1,55 @@
+/* "Drag to move the light" — shown once the beam has rendered, gone after the first drag. */
+.hint {
+  position: absolute;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px 0 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  color: var(--text-on-dark);
+  background: rgba(20, 20, 26, 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 300ms var(--ease-out),
+    transform 300ms var(--ease-out);
+}
+
+.hint[data-show] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 700ms;
+}
+
+.hint[data-gone] {
+  opacity: 0;
+  transform: translate(-50%, 0) scale(0.96);
+  transition-duration: 180ms;
+  transition-delay: 0ms;
+}
+
+.hint svg {
+  flex: none;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .hint {
+    background: #1a1a20;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
