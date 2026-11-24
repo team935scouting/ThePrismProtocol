@@ -96,10 +96,10 @@ const ENTRY = 0.55; // how far down the left face the beam lands, apex = 0
 
 function layoutFor(aspect: number): Layout {
   if (aspect >= 1) {
-    // Clear of the headline, which sits bottom-left.
-    return { center: [aspect * 0.3, 0.3], radius: Math.min(0.46, 0.2 + aspect * 0.14), turn: (-30 * Math.PI) / 180 };
+    // Keep the full rotating volume in the open area to the right of the headline.
+    return { center: [aspect * 0.75, 0.3], radius: Math.min(0.32, aspect * 0.17), turn: (-30 * Math.PI) / 180 };
   }
-  return { center: [aspect * 0.12, 0.5], radius: Math.min(0.3, aspect * 0.62), turn: (-30 * Math.PI) / 180 };
+  return { center: [aspect * 0.12, 0.5], radius: Math.min(0.18, aspect * 0.3), turn: (-30 * Math.PI) / 180 };
 }
 
 const rot = ([x, y]: V, a: number): V => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
@@ -125,7 +125,10 @@ function entryPoint(l: Layout): V {
 function defaultSource(l: Layout, aspect: number): V {
   const t = entryPoint(l);
   const dir = rot([Math.cos(BEAM_RISE), Math.sin(BEAM_RISE)], l.turn);
-  const k = (t[0] + aspect * 0.995) / dir[0];
+  // Follow the rotating prism from whichever edge of the scene is upstream.
+  const kx = dir[0] > 0 ? (t[0] + aspect * 0.995) / dir[0] : dir[0] < 0 ? (t[0] - aspect * 0.995) / dir[0] : Infinity;
+  const ky = dir[1] > 0 ? (t[1] + 0.995) / dir[1] : dir[1] < 0 ? (t[1] - 0.995) / dir[1] : Infinity;
+  const k = Math.min(kx, ky);
   return [t[0] - dir[0] * k, t[1] - dir[1] * k];
 }
 
@@ -186,6 +189,10 @@ const SAMPLES = 400_000;
 /** Ray-texture rows traced per frame (512 rays each), idle vs. while dragging. */
 const ROWS_SETTLING = 48;
 const ROWS_DRAGGING = 24;
+/** Keep the animated prism responsive without retracing at the monitor refresh rate. */
+const AUTO_FRAME_MS = 70;
+/** One unhurried turn every 42 seconds. */
+const AUTO_ROTATION_SPEED = (Math.PI * 2) / 42;
 /** A white beam through one prism needs ~4 bounces; 6 leaves room for internal reflections. */
 const BOUNCES = 6;
 /** Denoise blur radius in CSS px after the first frame of rays; shrinks with 1/sqrt(samples). */
@@ -194,13 +201,19 @@ const BEAM_WIDTH = 0.03; // scene units, full width of the beam's soft profile
 /** Peak brightness of the incoming beam before tone mapping (1 = white). */
 const BEAM_PEAK = 3;
 
-export default function PrismScene({ active, onReady }: { active: boolean; reduced: boolean; onReady?: () => void }) {
+export default function PrismScene({ active, reduced, onReady }: { active: boolean; reduced: boolean; onReady?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const outlineRef = useRef<SVGPolygonElement>(null);
+  const backFaceRef = useRef<SVGPolygonElement>(null);
+  const sideABRef = useRef<SVGPolygonElement>(null);
+  const sideBCRef = useRef<SVGPolygonElement>(null);
+  const sideCARef = useRef<SVGPolygonElement>(null);
+  const frontFaceRef = useRef<SVGPolygonElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(active);
+  const reducedRef = useRef(reduced);
   const wake = useRef<() => void>(() => {});
   const readyRef = useRef(onReady);
 
@@ -212,6 +225,11 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
     activeRef.current = active;
     if (active) wake.current();
   }, [active]);
+
+  useEffect(() => {
+    reducedRef.current = reduced;
+    wake.current();
+  }, [reduced]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -262,13 +280,23 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
 
         let aspect = w / h;
         let prismAt: V | null = null; // where the visitor dragged the prism, if anywhere
+        let autoTurn = 0;
+        let pointerOverPrism = false;
+        let pointerClient: V | null = null;
+        let lastAutoFrame = 0;
+        type Gesture = { id: number; mode: "prism" | "light" | "pending"; x: number; y: number; offset: V };
+        let gesture: Gesture | null = null;
         const clampCenter = ([x, y]: V, radius: number): V => [
           Math.min(aspect - radius, Math.max(-aspect + radius, x)),
           Math.min(1 - radius, Math.max(-1 + radius, y)),
         ];
         const layoutNow = (): Layout => {
           const base = layoutFor(aspect);
-          return prismAt ? { ...base, center: clampCenter(prismAt, base.radius) } : base;
+          return {
+            ...base,
+            center: clampCenter(prismAt ?? base.center, base.radius * 1.46),
+            turn: base.turn + autoTurn,
+          };
         };
         let layout = layoutNow();
         let source: V = defaultSource(layout, aspect);
@@ -276,13 +304,30 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
 
         const toPixels = ([x, y]: V): V => [((x / aspect + 1) / 2) * w, ((1 - y) / 2) * h];
         const toScene = (px: number, py: number): V => [((px / w) * 2 - 1) * aspect, 1 - (py / h) * 2];
+        const scenePoint = (e: PointerEvent): V => {
+          const r = canvas.getBoundingClientRect();
+          return toScene(((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h);
+        };
+        const hoverAt = (p: V) => {
+          const [cx, cy] = layout.center;
+          pointerOverPrism = Math.hypot(p[0] - cx, p[1] - cy) < layout.radius * 1.2;
+        };
 
         const drawOutline = () => {
           const svg = svgRef.current;
           const poly = outlineRef.current;
           if (!svg || !poly) return;
           svg.setAttribute("viewBox", `${-aspect} -1 ${aspect * 2} 2`);
-          poly.setAttribute("points", prismVertices(layout).map(([x, y]) => `${x},${-y}`).join(" "));
+          const [a, b, c] = prismVertices(layout);
+          const depth = rot([layout.radius * 0.36, layout.radius * 0.2], layout.turn);
+          const [backA, backB, backC] = [add(a, depth), add(b, depth), add(c, depth)];
+          const asPoints = (points: V[]) => points.map(([x, y]) => `${x},${-y}`).join(" ");
+          backFaceRef.current?.setAttribute("points", asPoints([backA, backB, backC]));
+          sideABRef.current?.setAttribute("points", asPoints([a, b, backB, backA]));
+          sideBCRef.current?.setAttribute("points", asPoints([b, c, backC, backB]));
+          sideCARef.current?.setAttribute("points", asPoints([c, a, backA, backC]));
+          frontFaceRef.current?.setAttribute("points", asPoints([a, b, c]));
+          poly.setAttribute("points", asPoints([a, b, c]));
           placeHandle();
           placeHint();
         };
@@ -366,13 +411,30 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         const loop = (t: number) => {
           frame = 0;
           if (cancelled || !activeRef.current) return;
-          if (!renderer.finished()) {
+          if (pointerClient && !gesture) hoverAt(toScene(
+            ((pointerClient[0] - canvas.getBoundingClientRect().left) / canvas.clientWidth) * w,
+            ((pointerClient[1] - canvas.getBoundingClientRect().top) / canvas.clientHeight) * h,
+          ));
+          const rotating = !reducedRef.current && !pointerOverPrism && !gesture;
+          const rotateFrame = rotating && (!lastAutoFrame || t - lastAutoFrame >= AUTO_FRAME_MS);
+          if (rotateFrame) {
+            const elapsed = lastAutoFrame ? Math.min((t - lastAutoFrame) / 1000, 0.2) : AUTO_FRAME_MS / 1000;
+            lastAutoFrame = t;
+            autoTurn = (autoTurn + elapsed * AUTO_ROTATION_SPEED) % (Math.PI * 2);
+            layout = layoutNow();
+            if (!custom) source = defaultSource(layout, aspect);
+            drawOutline();
+            aim();
+          }
+          if (rotateFrame || (!rotating && !renderer.finished())) {
             renderer.renderInstant(t);
             if (!announced) {
               announced = true;
               readyRef.current?.();
               showHint();
             }
+          }
+          if (rotating || !renderer.finished()) {
             frame = requestAnimationFrame(loop);
           } else {
             renderer.idle();
@@ -408,13 +470,27 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         // Input. One gesture at a time: "prism" moves the prism, "light" moves the light,
         // "pending" is a touch on the open hero that becomes a light drag only if it heads
         // sideways (vertical swipes belong to the browser and end in pointercancel).
-        type Gesture = { id: number; mode: "prism" | "light" | "pending"; x: number; y: number; offset: V };
-        let gesture: Gesture | null = null;
         const handle = handleRef.current;
 
-        const scenePoint = (e: PointerEvent): V => {
-          const r = canvas.getBoundingClientRect();
-          return toScene(((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h);
+        const trackHover = (e: PointerEvent) => {
+          if (e.pointerType === "touch") return;
+          pointerClient = [e.clientX, e.clientY];
+          if (gesture) return;
+          const wasOver = pointerOverPrism;
+          hoverAt(scenePoint(e));
+          if (!pointerOverPrism && wasOver) {
+            lastAutoFrame = 0;
+            wake.current();
+          }
+        };
+        const leavePrism = (e: PointerEvent) => {
+          if (e.pointerType === "touch" || gesture) return;
+          pointerClient = null;
+          if (!pointerOverPrism) return;
+          pointerOverPrism = false;
+          pointerClient = null;
+          lastAutoFrame = 0;
+          wake.current();
         };
         const startDragging = () => {
           renderer.maxActiveBlock = ROWS_DRAGGING;
@@ -448,6 +524,8 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
             y: e.clientY,
             offset: [layout.center[0] - p[0], layout.center[1] - p[1]],
           };
+          if (onPrism) pointerOverPrism = true;
+          if (e.pointerType !== "touch") pointerClient = [e.clientX, e.clientY];
           if (gesture.mode === "pending") return;
           if (onPrism) e.preventDefault();
           startDragging();
@@ -475,10 +553,19 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
           gesture = null;
           renderer.maxActiveBlock = ROWS_SETTLING;
           handle?.removeAttribute("data-dragging");
+          if (e.pointerType !== "touch") {
+            trackHover(e);
+          } else {
+            pointerOverPrism = false;
+            lastAutoFrame = 0;
+            wake.current();
+          }
         };
         const reset = () => {
           custom = false;
           prismAt = null;
+          autoTurn = 0;
+          lastAutoFrame = 0;
           layout = layoutNow();
           source = defaultSource(layout, aspect);
           drawOutline();
@@ -495,7 +582,11 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
 
         const targets: HTMLElement[] = handle ? [canvas, handle] : [canvas];
         canvas.addEventListener("pointerdown", downCanvas);
+        canvas.addEventListener("pointermove", trackHover);
+        canvas.addEventListener("pointerleave", leavePrism);
         handle?.addEventListener("pointerdown", downHandle);
+        handle?.addEventListener("pointermove", trackHover);
+        handle?.addEventListener("pointerleave", leavePrism);
         for (const t of targets) {
           t.addEventListener("pointermove", onMove);
           t.addEventListener("pointerup", end);
@@ -506,7 +597,11 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
           ro.disconnect();
           window.clearTimeout(resizeTimer);
           canvas.removeEventListener("pointerdown", downCanvas);
+          canvas.removeEventListener("pointermove", trackHover);
+          canvas.removeEventListener("pointerleave", leavePrism);
           handle?.removeEventListener("pointerdown", downHandle);
+          handle?.removeEventListener("pointermove", trackHover);
+          handle?.removeEventListener("pointerleave", leavePrism);
           for (const t of targets) {
             t.removeEventListener("pointermove", onMove);
             t.removeEventListener("pointerup", end);
@@ -556,12 +651,26 @@ export default function PrismScene({ active, onReady }: { active: boolean; reduc
         preserveAspectRatio="none"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
       >
+        <defs>
+          <linearGradient id="prism-front-glass" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#eaf7ff" stopOpacity="0.16" />
+            <stop offset="52%" stopColor="#9ecbff" stopOpacity="0.07" />
+            <stop offset="100%" stopColor="#ac8cff" stopOpacity="0.13" />
+          </linearGradient>
+          <linearGradient id="prism-side-glass" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#91e7ff" stopOpacity="0.19" />
+            <stop offset="100%" stopColor="#8673ff" stopOpacity="0.08" />
+          </linearGradient>
+        </defs>
+        <polygon ref={backFaceRef} className={styles.prismBack} />
+        <polygon ref={sideABRef} className={styles.prismSideA} />
+        <polygon ref={sideBCRef} className={styles.prismSideB} />
+        <polygon ref={sideCARef} className={styles.prismSideC} />
+        <polygon ref={frontFaceRef} className={styles.prismFront} />
         <polygon
           ref={outlineRef}
+          className={styles.prismOutline}
           fill="none"
-          stroke="rgba(245,245,247,0.22)"
-          strokeWidth={1}
-          strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
       </svg>

@@ -14,6 +14,52 @@
   cursor: grabbing;
 }
 
+/* Transparent facets make the triangular cross-section read as a solid prism. */
+.prismBack,
+.prismSideA,
+.prismSideB,
+.prismSideC,
+.prismFront {
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.prismBack {
+  fill: rgba(121, 156, 255, 0.055);
+  stroke: rgba(204, 220, 255, 0.24);
+  stroke-width: 0.8;
+}
+
+.prismSideA {
+  fill: url(#prism-side-glass);
+  stroke: rgba(183, 231, 255, 0.45);
+  stroke-width: 0.9;
+}
+
+.prismSideB {
+  fill: rgba(194, 226, 255, 0.1);
+  stroke: rgba(237, 244, 255, 0.38);
+  stroke-width: 0.9;
+}
+
+.prismSideC {
+  fill: rgba(151, 130, 255, 0.11);
+  stroke: rgba(194, 185, 255, 0.4);
+  stroke-width: 0.9;
+}
+
+.prismFront {
+  fill: url(#prism-front-glass);
+  stroke: rgba(241, 248, 255, 0.46);
+  stroke-width: 0.8;
+}
+
+.prismOutline {
+  stroke: rgba(245, 245, 247, 0.2);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
+
 /* "Drag the prism or the light" — shown once the beam has rendered, gone after the first drag. */
 .hint {
   position: absolute;
