@@ -63,7 +63,7 @@
   font-size: clamp(44px, 7.4vw, 104px);
   line-height: 0.98;
   letter-spacing: -0.045em;
-  max-width: 11ch;
+  max-width: 15ch;
 }
 
 .lede {

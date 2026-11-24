@@ -6,59 +6,28 @@ import Segmented from "./Segmented";
 import styles from "./Developers.module.css";
 
 const SAMPLES = {
-  curl: {
-    label: "curl",
-    lang: "sh",
-    code: `# Everything since the last record you saw
-curl "http://prism.local/v1/records?since=1183"
-
-[
-  {
-    "id": 1184,
-    "device": "red-2",
-    "received": "2027-03-14T10:42:07Z",
-    "data": { "match": 18, "team": 935, "auto": { "leave": true } }
-  }
-]`,
-  },
-  js: {
-    label: "JavaScript",
+  convert: {
+    label: "Convert a file",
     lang: "js",
-    code: `// Live stream of every record as it lands on the Pi
-const ws = new WebSocket("ws://prism.local/v1/stream");
-
-ws.onmessage = ({ data }) => {
-  const record = JSON.parse(data);
-  // record.data is exactly what your scouting form sent
-  db.matches.insert(record.data);
-};`,
+    code: `const htmlPage = convert(csvText, {
+  to: "html",
+  page: true,
+});`,
   },
-  py: {
-    label: "Python",
-    lang: "py",
-    code: `import asyncio, json, websockets
-
-async def main():
-    async with websockets.connect("ws://prism.local/v1/stream") as ws:
-        async for message in ws:
-            record = json.loads(message)
-            print(record["device"], record["data"]["team"])
-
-asyncio.run(main())`,
+  database: {
+    label: "Use your database",
+    lang: "js",
+    code: `const doc = parse(fileFromAnotherTeam);
+for (const record of doc.records) {
+  await addDoc(collection(db, "matches"), record);
+}`,
   },
 } as const;
 
 type Key = keyof typeof SAMPLES;
 const KEYS = Object.keys(SAMPLES) as Key[];
 
-const ENDPOINTS = [
-  { method: "GET", path: "/v1/devices", what: "Paired devices and when each was last seen" },
-  { method: "GET", path: "/v1/records", what: "Stored records, filterable by ID or device" },
-  { method: "WS", path: "/v1/stream", what: "Every new record, the moment it's stored" },
-  { method: "POST", path: "/v1/broadcast", what: "Send a payload to every paired device" },
-];
-
-const KEYWORDS = /^(const|let|async|await|def|for|in|import|as|with|return|new|print)$/;
+const KEYWORDS = /^(const|let|async|await|for|of|import|from|new|return)$/;
 
 /** Small, honest highlighter: comments, strings, numbers, keywords. */
 function highlight(code: string, lang: string): ReactNode[] {
@@ -83,7 +52,7 @@ function highlight(code: string, lang: string): ReactNode[] {
 }
 
 export default function Developers() {
-  const [active, setActive] = useState<Key>("curl");
+  const [active, setActive] = useState<Key>("convert");
   const sample = SAMPLES[active];
 
   return (
@@ -93,24 +62,18 @@ export default function Developers() {
           <p className="eyebrow">
             Developers
           </p>
-          <h2 className={styles.title}>Your app speaks HTTP. Prism handles the radio.</h2>
+          <h2 className={styles.title}>Add TPP to the app you already use.</h2>
           <p className={styles.lede}>
-            No SDK and no Bluetooth code in your app. Point it at the Pi and read JSON. If your
-            scouting app already runs in a browser, it already has everything it needs.
+            A developer integrates TPP where scouting data enters or leaves your software. TPP
+            can parse, check and convert records. Apps need to add TPP before they can exchange
+            data through it.
           </p>
-          <ul className={styles.endpoints}>
-            {ENDPOINTS.map((e) => (
-              <li key={e.path}>
-                <code>
-                  <span className={styles.method}>{e.method}</span> {e.path}
-                </code>
-                <span>{e.what}</span>
-              </li>
-            ))}
-          </ul>
           <p className={styles.note}>
-            Developer preview. Endpoints may change before 1.0.{" "}
-            <Link href="/beta">Join the developer beta</Link>
+            Try the library with your team&apos;s scouting data. <Link href="/beta">Sign up for the beta</Link>
+          </p>
+          <p className={styles.note}>
+            These examples show the v2 API. The npm package still installs v1.0.0; use the
+            <a href="https://github.com/team935scouting/prism-protocol"> GitHub source</a> for current setup details.
           </p>
         </div>
 
@@ -120,7 +83,7 @@ export default function Developers() {
               options={KEYS.map((k) => ({ key: k, label: SAMPLES[k].label }))}
               value={active}
               onChange={setActive}
-              label="Code sample language"
+              label="TPP example"
               idPrefix="tab"
               panelId="code-panel"
             />

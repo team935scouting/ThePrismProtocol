@@ -6,6 +6,7 @@ import LiquidGlass from "./LiquidGlass";
 import styles from "./Nav.module.css";
 
 const LINKS = [
+  { href: "/#protocol", label: "Protocol" },
   { href: "/#how", label: "How it works" },
   { href: "/#developers", label: "Developers" },
   { href: "/beta", label: "Beta" },

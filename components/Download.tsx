@@ -1,19 +1,7 @@
 import { PrismMark } from "./Nav";
 import styles from "./Download.module.css";
 
-const REPO = "https://github.com/team935scouting/ThePrismProtocol";
-
-const BOARDS = [
-  { name: "Raspberry Pi 5", radio: "Bluetooth 5.0 / BLE" },
-  { name: "Raspberry Pi 4 Model B", radio: "Bluetooth 5.0 / BLE" },
-  { name: "Raspberry Pi Zero 2 W", radio: "Bluetooth 4.2 / BLE" },
-];
-
-const SETUP = [
-  { lead: "Download.", rest: "Get the Prism OS image for your board." },
-  { lead: "Flash.", rest: "Write it to a microSD card with Raspberry Pi Imager." },
-  { lead: "Power on.", rest: "Open prism.local from any device on the same network." },
-];
+const REPO = "https://github.com/team935scouting/prism-protocol";
 
 export default function Download() {
   return (
@@ -21,50 +9,38 @@ export default function Download() {
       <div className="wrap">
         <div className={styles.top}>
           <div>
-            <p className="eyebrow">
-              Prism OS
+            <p className="eyebrow">Use TPP</p>
+            <h2 className={styles.title}>Keep the scouting system you have.</h2>
+            <p className={styles.intro}>
+              A developer can add TPP to an existing app to read, validate and convert its match
+              data. Your team keeps its forms, workflow and database.
             </p>
-            <h2 className={styles.title}>From a microSD card to match one.</h2>
           </div>
           <div className={styles.actions}>
-            <a className={styles.primary} href={`${REPO}/releases`}>
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 2v8.5M4.5 7 8 10.5 11.5 7M3 13.5h10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Download Prism OS
+            <a className={styles.primary} href={REPO}>
+              View source and examples
             </a>
-            <a className={styles.secondary} href={REPO}>
-              Source on GitHub
+            <a className={styles.secondary} href="/beta">
+              Join the developer beta
             </a>
           </div>
         </div>
 
         <div className={styles.cols}>
           <div>
-            <h3 className={styles.h3}>Set up</h3>
-            <ol className={styles.setup}>
-              {SETUP.map((s) => (
-                <li key={s.lead} className="lead">
-                  <strong>{s.lead}</strong> {s.rest}
-                </li>
-              ))}
-            </ol>
+            <h3 className={styles.h3}>For existing scouting apps</h3>
+            <p className="lead">
+              <strong>Use TPP as the shared data layer.</strong> It gives scouting apps a common
+              way to describe metrics and exchange records while each team keeps its own app and
+              database.
+            </p>
           </div>
-          <div>
-            <h3 className={styles.h3}>Runs on</h3>
-            <table className={styles.boards}>
-              <tbody>
-                {BOARDS.map((b) => (
-                  <tr key={b.name}>
-                    <th scope="row">{b.name}</th>
-                    <td>{b.radio}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className={styles.fine}>
-              Built on Raspberry Pi OS Lite. Any board with an onboard Bluetooth radio, or a
-              supported USB adapter, should work.
+          <div className={styles.separate}>
+            <h3 className={styles.h3}>The no-code scouting app</h3>
+            <p className="lead">
+              <strong>That is a separate product direction.</strong> It is intended to let teams
+              build scouting workflows without editing code. TPP is the compatibility layer
+              beneath it, not the app builder itself.
             </p>
           </div>
         </div>
@@ -76,9 +52,9 @@ export default function Download() {
           The Prism Protocol
         </span>
         <nav aria-label="Footer">
+          <a href="#protocol">What TPP is</a>
           <a href="#how">How it works</a>
-          <a href="#developers">Developers</a>
-          <a href={REPO}>GitHub</a>
+          <a href={REPO}>Source on GitHub</a>
         </nav>
       </footer>
     </section>

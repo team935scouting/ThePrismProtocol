@@ -8,9 +8,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Prism — Bluetooth for every scouting app",
+  title: "The Prism Protocol — Scouting data across apps",
   description:
-    "Prism is an open protocol and a Raspberry Pi OS that handles Bluetooth between scouting devices and hands your app clean JSON over the local network.",
+    "The Prism Protocol is a JavaScript library for describing, validating and converting scouting data so existing scouting systems can exchange match records.",
 };
 
 export const viewport: Viewport = {

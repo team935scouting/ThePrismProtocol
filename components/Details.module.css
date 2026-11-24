@@ -34,12 +34,19 @@
   row-gap: clamp(40px, 6vh, 64px);
 }
 
-.grid p {
+.item {
   max-width: 28rem;
 }
 
+.label {
+  margin-bottom: 10px;
+  color: var(--muted-on-light);
+  font-size: 14px;
+  font-weight: 600;
+}
+
 /* Offset the right column so the two read as a staggered pair, not a table. */
-.grid p:nth-child(even) {
+.grid > .item:nth-child(even) {
   transform: translateY(clamp(0px, 6vh, 72px));
 }
 
@@ -51,7 +58,7 @@
   .grid {
     grid-template-columns: 1fr;
   }
-  .grid p:nth-child(even) {
+  .grid > .item:nth-child(even) {
     transform: none;
   }
 }

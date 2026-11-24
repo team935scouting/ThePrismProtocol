@@ -1,10 +1,16 @@
-# The Prism Protocol
+# The Prism Protocol site
 
-Marketing site for Prism: an open protocol plus a Raspberry Pi OS image that handles
-Bluetooth between scouting devices and gives any scouting app clean JSON over the
-local network.
+This repository contains the public site and team beta portal for The Prism Protocol (TPP).
+TPP is a JavaScript library that gives scouting systems a shared way to describe, validate,
+read, write and convert match data. It is designed to work with existing scouting apps after
+their developers integrate it; it does not replace those apps or connect them automatically.
 
-## Develop
+The library supports nine data formats, typed metric definitions, validation, and custom
+metrics and formats. A separate configurable scouting app is the no-code product direction;
+it is not part of TPP itself. The library implementation is maintained separately from this
+site repository: [github.com/team935scouting/prism-protocol](https://github.com/team935scouting/prism-protocol).
+
+## Develop the site
 
 ```sh
 npm install
@@ -14,17 +20,19 @@ npm run build   # static export to out/ (includes CNAME for GitHub Pages)
 
 ## Where things are
 
-- `app/` – layout, global tokens (`globals.css`), page composition
-- `components/PrismScene.tsx` – the hero: a glass prism (React Three Fiber,
-  `MeshTransmissionMaterial`) recombining six scout beams into one
-- `components/LiquidGlass.tsx` – Liquid Glass material: per-element SVG displacement map
-  applied through `backdrop-filter` in Chromium, frosted fallback elsewhere
-- `components/HowItWorks.tsx` – scroll-driven four-step diagram
-- `.claude/skills/anti-slop/` – design rules every UI change here is checked against
+- `app/` – page composition, metadata and global styles
+- `components/PrismScene.tsx` – prism visual used on the public site and beta page
+- `components/LiquidGlass.tsx` – Liquid Glass material for navigation and controls
+- `components/HowItWorks.tsx` – a CSV-to-TPP-to-YAML match record example
+- `components/Developers.tsx` – JavaScript integration examples for parsing and conversion
+- `.claude/skills/anti-slop/` – design and copy guidance for this site
 
-## Developer beta accounts (Supabase)
+## Team beta portal (Supabase)
 
-`/beta` signs people up and in with Supabase Auth, straight from the browser.
+`/beta` signs people up and in with Supabase Auth. The portal supports team accounts,
+developer beta programs, release notices and community feedback. Its team and device
+administration tools are site infrastructure, not capabilities provided by the TPP library
+or the separate no-code scouting app.
 
 1. Create a Supabase project, then copy `.env.example` to `.env.local` and fill in the
    project URL and anon (publishable) key from **Project Settings → API**.
@@ -33,29 +41,23 @@ npm run build   # static export to out/ (includes CNAME for GitHub Pages)
    `https://theprisimprotocol.dev/beta` and `http://localhost:3000/beta`.
 3. Leave **Confirm email** on. New accounts get a confirmation link that lands back on
    `/beta`. Password resets work the same way.
-
-4. Open **SQL Editor**, paste all of
-   `supabase/migrations/20261123000000_prism_platform.sql` and run it once.
-5. Make yourself the owner of team 935 (which is what unlocks `/admin`):
+4. Open **SQL Editor** and run the files in `supabase/migrations/` in timestamp order.
+5. Make yourself the owner of team 935 (which unlocks `/admin`):
    `select public.prism_bootstrap_owner(935, 'the-email-you-signed-up-with');`
 
-## Teams, roles and the consoles
+## Portal roles and pages
 
-- **Sign-up** asks for a team number. After the email is confirmed and the person signs
-  in, the first account for a number founds that team as its **owner**. Later accounts
-  for the same number wait as **pending** until an owner or admin accepts them; they
-  join as **developers** and can be promoted to **admin**.
-- **`/dashboard`** (every team): members and join requests, devices, test programs,
-  community posts and account settings.
-- **`/pair`**: a phone or tablet scans the QR code from *Dashboard → Devices → Add
-  device* (or types the 8-character code). Its secret token stays on that device; only a
-  hash is stored. Admins then choose which software each device may run, and on which
-  channel.
-- **`/admin`** (active members of team 935 only): every team, account and device,
-  software and releases, test programs, community moderation, and the homepage
-  announcement and sign-up switch.
+- The first account for a team number becomes its **owner**. Later signups wait as
+  **pending** until an owner or admin accepts them. Accepted accounts join as **developers**
+  and can be promoted to **admin**.
+- **`/dashboard`**: members and join requests, devices, beta programs, community posts and
+  account settings.
+- **`/pair`**: a portal utility for pairing a device to a team account. It is separate from
+  TPP's data-format and validation features.
+- **`/admin`** (active members of team 935 only): team accounts and devices, beta releases,
+  test programs, community moderation, and public-site settings.
 
-All of this is enforced in Postgres (row-level security, column grants and
+Portal access is enforced in Postgres (row-level security, column grants and
 `SECURITY DEFINER` functions in the migration). The browser code only shapes requests.
 
 Because the site is a static export, the two `NEXT_PUBLIC_` values are baked in at build

@@ -68,7 +68,7 @@ function Overview({ r, go }: { r: Ready; go: (id: Id) => void }) {
         lead={
           <>
             <strong>{ROLE_SENTENCE[r.membership.role]}</strong>{" "}
-            {r.team.name ? `Team ${r.team.number}. ` : ""}Everything your team runs on Prism is here.
+            {r.team.name ? `Team ${r.team.number}. ` : ""}Manage your team's beta access and portal tools here.
           </>
         }
       />
@@ -114,8 +114,8 @@ function Overview({ r, go }: { r: Ready; go: (id: Id) => void }) {
           />
           <Row
             lead={<Icon name="devices" />}
-            title="Pair your scouting devices"
-            sub="Each phone or tablet scans a code once."
+            title="Register a beta test device"
+            sub="Add a phone or tablet to this portal with a one-time code."
             onClick={() => go("devices")}
           />
           <Row
@@ -241,15 +241,15 @@ function Account({ r, onTeamChanged }: { r: Ready; onTeamChanged: () => void }) 
       <Section title="Notifications">
         <Group>
           <Row
-            title="Beta build emails"
-            sub="Get an email when a new Prism OS build is ready."
+            title="TPP beta updates"
+            sub="Get email about TPP beta updates."
             end={
               <Switch
-                label="Beta build emails"
+                label="TPP beta updates"
                 checked={profile.data?.beta_updates ?? false}
                 disabled={!profile.data}
                 onChange={async (v) => {
-                  if (await act(() => updateProfile(r.user.id, { beta_updates: v }), v ? "You'll get build emails" : "Build emails off"))
+                  if (await act(() => updateProfile(r.user.id, { beta_updates: v }), v ? "TPP beta updates on" : "TPP beta updates off"))
                     profile.reload();
                 }}
               />
@@ -330,7 +330,7 @@ function Console({ r, reload }: { r: Ready; reload: () => void }) {
             title="Members"
             lead={
               <>
-                <strong>Who can work on Team {r.team.number}&apos;s Prism setup.</strong> New sign-ups
+                <strong>Who can access Team {r.team.number}&apos;s beta portal.</strong> New sign-ups
                 join as developers once accepted.
               </>
             }
@@ -344,8 +344,8 @@ function Console({ r, reload }: { r: Ready; reload: () => void }) {
             title="Devices"
             lead={
               <>
-                <strong>Every phone, tablet and Pi your team uses.</strong> Choose what software each one
-                is allowed to run.
+                <strong>Devices registered to the beta portal.</strong> Choose which test software
+                each one can run.
               </>
             }
           />

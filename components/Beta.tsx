@@ -200,8 +200,8 @@ export default function Beta() {
                 <p className="eyebrow">Developer beta</p>
                 <h1 className={styles.title}>You&apos;re in.</h1>
                 <p className="lead">
-                  <strong>Signed in{status.email ? ` as ${status.email}` : ""}.</strong> New Prism OS
-                  builds go to beta accounts first.
+                  <strong>Signed in{status.email ? ` as ${status.email}` : ""}.</strong> Check
+                  the dashboard for TPP beta programs and updates.
                 </p>
                 <Link href="/dashboard" className={styles.submit}>
                   Open your dashboard
@@ -246,12 +246,12 @@ export default function Beta() {
             ) : (
               <>
                 <p className="eyebrow">Developer beta</p>
-                <h1 className={styles.title}>{mode === "join" ? "Build on Prism early." : "Sign in to the beta."}</h1>
+                <h1 className={styles.title}>{mode === "join" ? "Try TPP with your team." : "Sign in to the beta."}</h1>
                 <p className={`lead ${styles.intro}`}>
                   {mode === "join" ? (
                     <>
-                      <strong>Prism OS builds before they ship.</strong> Test the API against a real Pi
-                      and tell us what breaks.
+                      <strong>Test the library with your scouting data.</strong> Try your existing
+                      formats and metric definitions, then tell us what needs work.
                     </>
                   ) : (
                     <>
@@ -306,7 +306,7 @@ export default function Beta() {
                       />
                       <label className={styles.check}>
                         <input type="checkbox" name="updates" />
-                        <span>Email me when a new beta build is ready.</span>
+                        <span>Email me about TPP beta updates.</span>
                       </label>
                     </>
                   )}

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import styles from "./Statement.module.css";
 
 const LINE =
-  "Every scouting app ends up writing its own Bluetooth layer. Pairing, reconnecting, retrying, losing a match because a tablet fell asleep. Prism does that job once, on one Raspberry Pi, for all of them.";
+  "Every scouting app saves match data in its own shape. TPP gives those records a shared structure, so teams can exchange scouting data without replacing the apps they already use.";
 
 /** Words light up as the paragraph passes through the reading line. */
 export default function Statement() {
@@ -51,7 +51,7 @@ export default function Statement() {
   return (
     <section className={styles.section} data-nav="light" id="protocol">
       <div className="wrap">
-        <p className={`eyebrow ${styles.eyebrow}`}>What Prism is</p>
+        <p className={`eyebrow ${styles.eyebrow}`}>What TPP is</p>
         <p ref={ref} className={styles.line}>
           {words.map((w, i) => (
             <span key={i}>{w} </span>
@@ -60,18 +60,16 @@ export default function Statement() {
 
         <div className={styles.layers}>
           <p className="lead">
-            <strong>The protocol.</strong> A small, documented contract for moving records
-            between devices and a hub: how a device introduces itself, how a record is framed,
-            and when it counts as delivered. Open, so any app can speak it.
+            <strong>A shared structure.</strong> Define scouting metrics and their types once.
+            TPP carries those definitions with the match records that use them.
           </p>
           <p className="lead">
-            <strong>Prism OS.</strong> A Raspberry Pi image that implements the protocol. It owns
-            the Bluetooth radio, keeps every record on disk, and serves them on your local
-            network.
+            <strong>Checks and conversion.</strong> TPP checks values against the metric
+            definitions, then reads or writes the data in formats other systems can use.
           </p>
           <p className="lead">
-            <strong>Your app.</strong> Stays exactly what it is. It reads and writes JSON over
-            HTTP or a WebSocket, and Prism never looks inside it.
+            <strong>Your scouting system.</strong> Keep your app and database. A developer
+            integrates TPP where that system needs to read, write or exchange scouting data.
           </p>
         </div>
       </div>

@@ -79,8 +79,8 @@ function Overview({ go }: { go: (id: Id) => void }) {
         title="Prism admin"
         lead={
           <>
-            <strong>Every team, device and release on Prism.</strong> Changes here apply to the whole
-            platform.
+            <strong>Team accounts, test devices and beta releases.</strong> Changes here apply to
+            the beta portal.
           </>
         }
       />
@@ -337,7 +337,7 @@ function SoftwareSection() {
             </Button>
           </div>
         }
-        lead={<><strong>What Prism ships, and which versions devices get.</strong> Teams grant each device access to software; releases decide what it downloads.</>}
+        lead={<><strong>Test software managed by the beta portal.</strong> Teams grant each device access to software; releases decide what it downloads.</>}
       />
       {!software.data || !releases.data ? (
         <Section>
@@ -603,7 +603,7 @@ function Website() {
                   label="Text"
                   value={currentText}
                   maxLength={140}
-                  placeholder="Prism OS 0.4 is out for beta teams"
+                  placeholder="A new beta build is ready for testing"
                   onChange={(e) => setText(e.target.value)}
                 />
                 <TextField

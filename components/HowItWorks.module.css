@@ -1,219 +1,143 @@
 .section {
-  position: relative;
-  height: 400vh;
   background: var(--paper-2);
   color: var(--text-on-light);
+  padding: clamp(100px, 15vh, 168px) 0;
 }
 
-.sticky {
-  position: sticky;
-  top: 0;
-  height: 100svh;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-.grid {
+.head {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: clamp(32px, 5vw, 80px);
-  align-items: center;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 32px;
+  align-items: end;
+  margin-bottom: clamp(40px, 7vh, 72px);
 }
 
 .title {
-  margin-top: 16px;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(30px, 3.6vw, 48px);
-  line-height: 1.05;
-  letter-spacing: -0.035em;
-  max-width: 14ch;
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  max-width: 15ch;
 }
 
-.steps {
-  list-style: none;
-  margin-top: 36px;
-  display: grid;
-  gap: 22px;
-}
-
-/* Each step is one sentence-led paragraph, Apple style. The current step reads in
-   full colour; the others recede so the eye stays on the diagram's state. */
-.steps button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  font-family: var(--font-display);
-  font-size: clamp(17px, 1.5vw, 21px);
-  font-weight: 600;
-  line-height: 1.38;
-  letter-spacing: 0.011em;
-  color: #c7c7cc;
-  max-width: 30rem;
-  border-radius: 8px;
-  transition: color 250ms var(--ease-out);
-}
-
-.steps strong {
-  font-weight: 600;
-  transition: color 250ms var(--ease-out);
-}
-
-.steps li[data-active] button {
+.sub {
+  max-width: 28rem;
   color: var(--muted-on-light);
+  font-size: clamp(17px, 1.7vw, 20px);
 }
 
-.steps li[data-active] strong {
-  color: var(--text-on-light);
+.flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr);
+  gap: clamp(12px, 2vw, 24px);
+  align-items: stretch;
 }
 
-.steps button:hover strong {
-  color: var(--text-on-light);
+.stage {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 16px;
+  background: #fff;
 }
 
-.steps button:focus-visible {
-  outline-color: var(--accent-on-light);
-  outline-offset: 6px;
+.stageLabel {
+  margin-bottom: 24px;
+  color: var(--muted-on-light);
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.visual {
-  position: relative;
+.stage h3 {
+  margin-bottom: 16px;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 2vw, 24px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
 }
 
-.diagram {
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-/* Diagram parts */
-.link {
-  fill: none;
-  stroke: rgba(0, 0, 0, 0.22);
-  stroke-width: 1.5;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset 700ms var(--ease-out);
-}
-.link[data-on] {
-  stroke-dashoffset: 0;
-}
-
-.device {
-  fill: #ffffff;
-  stroke: rgba(0, 0, 0, 0.75);
-  stroke-width: 1.5;
-}
-.screen {
-  fill: #f2f2f4;
-}
-
-.tablet {
-  opacity: 0.35;
-  transition: opacity 300ms var(--ease-out);
-}
-.tablet[data-on] {
-  opacity: 1;
-}
-
-.label {
-  font-family: var(--font-text);
-  font-size: 12.5px;
-  font-weight: 500;
-  fill: #1d1d1f;
-}
-
-.board {
-  fill: #1d1d1f;
-}
-.pin {
-  fill: #c9a75a;
-}
-.chip {
-  fill: #2c2c30;
-  stroke: rgba(255, 255, 255, 0.14);
-}
-.chip2 {
-  fill: #c7c7cc;
-}
-.led {
-  fill: #48484a;
-  transition: fill 300ms var(--ease-out);
-}
-.led[data-on] {
-  fill: #30d158;
-}
-
-.host {
+.code {
+  overflow-x: auto;
+  min-height: 154px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: #1d1d1f;
   font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+.metrics {
+  list-style: none;
+  border-top: 1px solid var(--hairline-light);
+}
+
+.metrics li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--hairline-light);
+  font-size: 14px;
+}
+
+.metrics code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.metrics span {
+  color: var(--muted-on-light);
+  text-align: right;
+}
+
+.validation {
+  margin-top: 16px;
+  color: var(--muted-on-light);
   font-size: 13px;
-  fill: #1d1d1f;
-}
-.meta {
-  font-family: var(--font-text);
-  font-size: 11.5px;
-  fill: #6e6e73;
+  line-height: 1.45;
 }
 
-.laptop {
-  opacity: 0.35;
-  transition: opacity 300ms var(--ease-out);
-}
-.laptop[data-on] {
-  opacity: 1;
-}
-.row {
-  opacity: 0;
-  transition: opacity 250ms var(--ease-out);
-}
-.laptop[data-on] .row {
-  opacity: 1;
-}
-.cell {
-  fill: #d1d1d6;
+.arrow {
+  display: grid;
+  place-items: center;
+  color: #86868b;
+  font-size: 24px;
 }
 
-@media (max-width: 860px) {
-  .section {
-    height: 360vh;
-  }
-  .grid {
+.note {
+  margin-top: 24px;
+  color: var(--muted-on-light);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .flow {
     grid-template-columns: 1fr;
     gap: 12px;
-    align-content: center;
   }
-  .sticky {
-    padding-top: 56px;
+  .arrow {
+    transform: rotate(90deg);
+    min-height: 24px;
   }
-  .visual {
-    order: -1;
-    max-width: 440px;
-    margin: 0 -8px;
+  .stage {
+    padding: 18px;
   }
-  /* Text inside the SVG scales with it; bump sizes so labels stay readable on phones. */
-  .label {
-    font-size: 19px;
-    font-weight: 600;
+  .code {
+    min-height: 0;
   }
-  .host {
-    font-size: 19px;
-  }
-  .meta {
-    font-size: 17px;
+}
+
+@media (max-width: 760px) {
+  .head {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
   .title {
-    font-size: 26px;
-    max-width: none;
-  }
-  .steps {
-    margin-top: 16px;
-    gap: 12px;
-  }
-  .steps button {
-    font-size: 16px;
-  }
-  .steps li:not([data-active]) .rest {
-    display: none;
+    max-width: 12ch;
   }
 }

@@ -34,20 +34,21 @@ export default function Hero() {
         <Announcement />
         <p className={styles.eyebrow}>The Prism Protocol</p>
         <h1 className={styles.title}>
-          Six scouts in.
+          Scouting data
           <br />
-          One stream out.
+          that works across apps.
         </h1>
         <p className={styles.lede}>
-          Prism is a Raspberry Pi that handles Bluetooth for every phone and tablet in the
-          stands, then hands your scouting app clean JSON over the local network.
+          The Prism Protocol (TPP) gives scouting software a shared way to describe, check and
+          convert match data. Keep the system you use today, and add TPP where you want records
+          to move between apps.
         </p>
         <div className={styles.actions}>
-          <a href="#download" className={styles.primary}>
-            Get Prism OS
+          <a href="#protocol" className={styles.primary}>
+            What TPP is
           </a>
           <LiquidGlass as="a" href="#how" tone="dark" interactive className={styles.secondary}>
-            See how it works
+            See it work
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <path d="M7 2v10M3 8l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>

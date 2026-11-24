@@ -1,7 +1,7 @@
 .section {
   background: var(--paper-2);
   color: var(--text-on-light);
-  padding-top: clamp(110px, 16vh, 180px);
+  padding-top: clamp(100px, 15vh, 168px);
 }
 
 .top {
@@ -21,7 +21,14 @@
   font-size: clamp(36px, 5.4vw, 76px);
   line-height: 0.98;
   letter-spacing: -0.045em;
-  max-width: 12ch;
+  max-width: 13ch;
+}
+
+.intro {
+  margin-top: 20px;
+  max-width: 34rem;
+  color: var(--muted-on-light);
+  font-size: 18px;
 }
 
 .actions {
@@ -34,9 +41,9 @@
 .secondary {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  height: 50px;
-  padding: 0 24px;
+  justify-content: center;
+  min-height: 50px;
+  padding: 0 22px;
   border-radius: 999px;
   font-weight: 500;
   transition:
@@ -72,9 +79,13 @@
 
 .cols {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: clamp(40px, 6vw, 96px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(40px, 8vw, 120px);
   padding: clamp(40px, 6vh, 64px) 0 clamp(96px, 14vh, 160px);
+}
+
+.cols > div {
+  max-width: 34rem;
 }
 
 .h3 {
@@ -85,41 +96,9 @@
   margin-bottom: 18px;
 }
 
-.setup {
-  list-style: none;
-  display: grid;
-  gap: 18px;
-}
-
-.setup li {
-  max-width: 30rem;
-}
-
-.boards {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 15px;
-}
-
-.boards th,
-.boards td {
-  padding: 12px 0;
-  border-top: 1px solid var(--hairline-light);
-  text-align: left;
-  font-weight: 500;
-}
-
-.boards td {
-  text-align: right;
-  font-size: 14px;
-  color: var(--muted-on-light);
-  font-weight: 400;
-}
-
-.fine {
-  margin-top: 16px;
-  font-size: 14px;
-  color: var(--muted-on-light);
+.separate {
+  padding-left: clamp(20px, 4vw, 56px);
+  border-left: 1px solid var(--hairline-light);
 }
 
 .footer {
@@ -145,6 +124,7 @@
 
 .footer nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
 }
 
@@ -155,5 +135,14 @@
 @media (max-width: 760px) {
   .cols {
     grid-template-columns: 1fr;
+  }
+  .separate {
+    padding-left: 0;
+    padding-top: 28px;
+    border-left: 0;
+    border-top: 1px solid var(--hairline-light);
+  }
+  .footer nav {
+    gap: 14px;
   }
 }

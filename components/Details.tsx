@@ -3,29 +3,29 @@ import styles from "./Details.module.css";
 /* Spec-sheet layout: labelled rows with hairlines, not a grid of cards. */
 const ROWS = [
   {
-    label: "Delivery",
-    title: "A record is either on the Pi or still on the tablet.",
-    body: "Every record carries an ID. Prism stores it, then acknowledges. Tablets keep anything unacknowledged and resend it on reconnect, and duplicates are dropped by ID. A scout walking out of range mid-upload loses nothing.",
+    label: "Formats",
+    title: "Read and write nine formats.",
+    body: "JSON, CSV, TSV, YAML, XML, HTML, JSX, Markdown and Base64. Convert between formats as your app needs.",
   },
   {
-    label: "Reconnect",
-    title: "Pair at the first match. Never again.",
-    body: "Prism keeps a registry of known devices. When a tablet sleeps between matches and wakes up, it finds the Pi and picks up where it left off.",
+    label: "Metric types",
+    title: "Give each field a defined meaning.",
+    body: "Use built-in types for counts, numbers, time, ratings, true-or-false values, choices, text, positions and lists.",
   },
   {
-    label: "Offline",
-    title: "No internet, no access point, no problem.",
-    body: "The whole loop runs on the Pi and the radios. That matters at venues where you can't run your own Wi-Fi network: data still moves over Bluetooth.",
+    label: "Validation",
+    title: "Catch invalid records before importing them.",
+    body: "TPP checks values against their metric definitions and reports problems in plain language, including out-of-range values, unknown choices and unrecognized fields.",
   },
   {
-    label: "Two-way",
-    title: "Push to the stands, not just pull from them.",
-    body: "Send the match schedule, scouting assignments or a new form version from your app, and Prism delivers it to every paired device.",
+    label: "Extensions",
+    title: "Add team-specific metrics and file formats.",
+    body: "Define a custom metric type or teach TPP to read and write a format your existing scouting system already uses.",
   },
   {
-    label: "Schema",
-    title: "Prism moves JSON. It doesn't read it.",
-    body: "Your scouting form stays your scouting form. Change fields between events without touching Prism.",
+    label: "Your system",
+    title: "Keep your scouting app and database.",
+    body: "A developer integrates TPP into the app. It returns plain JavaScript records that your app can save in SQL, Firebase or another database.",
   },
 ];
 
@@ -34,17 +34,18 @@ export default function Details() {
     <section className={styles.section} data-nav="light">
       <div className="wrap">
         <header className={styles.head}>
-          <h2 className={styles.title}>The boring parts, done properly.</h2>
+          <h2 className={styles.title}>What TPP handles.</h2>
           <p className={styles.sub}>
-            Most scouting data goes missing in the same handful of ways. Prism is designed around
-            each one.
+            TPP handles record structure, validation and conversion. Teams keep their scouting
+            app and database.
           </p>
         </header>
         <div className={styles.grid}>
           {ROWS.map((r) => (
-            <p key={r.label} className="lead">
-              <strong>{r.title}</strong> {r.body}
-            </p>
+            <article key={r.label} className={styles.item}>
+              <p className={styles.label}>{r.label}</p>
+              <p className="lead"><strong>{r.title}</strong> {r.body}</p>
+            </article>
           ))}
         </div>
       </div>
